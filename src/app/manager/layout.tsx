@@ -26,7 +26,7 @@ export default function ManagerLayout({
   const initialRenderRef = useRef(true);
   
   // Use the manager authentication hook
-  const { isLoading, isManager } = useManagerAuth('/login');
+  const { isLoading, isManager } = useManagerAuth('manager');
 
   const logoutHandler = () => {
     logout();
@@ -111,11 +111,11 @@ export default function ManagerLayout({
   }
 
   return (
-    <div className="h-screen flex overflow-hidden">
-      {/* Sidebar - Fixed width - Only visible on desktop */}
-      <aside className="hidden md:block w-64 h-full flex-shrink-0">
+    <div className="flex overflow-hidden">
+      {/* Desktop Sidebar */}
+      <div className="hidden md:block">
         <DashboardSidebar />
-      </aside>
+      </div>
       
       {/* Mobile sidebar */}
       <div className={`
@@ -139,7 +139,7 @@ export default function ManagerLayout({
       </div>
       
       {/* Main Content Container */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col md:ml-64">
         {/* Mobile Menu Button */}
         <div className="md:hidden bg-indigo-600 text-white p-4 flex justify-between items-center">
           <h1 className="text-xl font-bold">Manager Dashboard</h1>

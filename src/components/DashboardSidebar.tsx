@@ -42,7 +42,7 @@ const DashboardSidebar = () => {
   const pathname = usePathname();
   
   return (
-    <div className="h-full bg-white border-r border-gray-200 flex flex-col">
+    <div className="fixed h-screen bg-white border-r border-gray-200 flex flex-col w-64">
       <div className="p-5">
         <h2 className="text-xl font-bold text-gray-800 mb-1">Dashboard</h2>
         <p className="text-sm text-gray-500">Manage your restaurant</p>

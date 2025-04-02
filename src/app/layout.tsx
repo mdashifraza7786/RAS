@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Header from "@/components/Header";
+import { LayoutProvider } from '@/components/LayoutProvider';
 
 export const metadata: Metadata = {
   title: "Restaurant Management System",
@@ -13,15 +13,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full">
-      <body className="overflow-hidden">
-        {/* Fixed header */}
-        <Header />
-        
-        {/* Main content with scrolling */}
-        <div className="w-full h-[calc(100vh-56px)]">
-            {children}
-        </div>
+    <html lang="en" className="">
+      <body className="h-full">
+        <LayoutProvider>
+          {children}
+        </LayoutProvider>
       </body>
     </html>
   );
