@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 // Simple roles that would be stored in a real authentication system
-export type UserRole = 'manager' | 'staff' | 'guest';
+export type UserRole = 'manager' | 'waiter' | 'chef' | 'guest';
 
 // Function to set the user role in localStorage (for demo purposes)
 export const setUserRole = (role: UserRole) => {
@@ -14,41 +14,35 @@ export const setUserRole = (role: UserRole) => {
 };
 
 // Function to get the current user role from localStorage
-export const getUserRole = (): UserRole => {
+export const getUserRole = (): UserRole | null => {
   if (typeof window !== 'undefined') {
-    const role = localStorage.getItem('userRole');
-    if (role === 'manager' || role === 'staff') {
-      return role;
-    }
+    const role = localStorage.getItem('userRole') as UserRole | null;
+    return role;
   }
-  return 'guest';
+  return null;
 };
 
 // Custom hook to check if the current user is a manager
-export const useManagerAuth = (redirectUrl: string = '/') => {
+export const useManagerAuth = (requiredRole: UserRole = 'manager') => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
-  const [isManager, setIsManager] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      // In a real app, this would be an API call to verify the user's session
-      const role = getUserRole();
-      
-      if (role !== 'manager') {
-        // Not a manager, redirect to the specified URL
-        router.push(redirectUrl);
-      } else {
-        setIsManager(true);
-      }
-      
-      setIsLoading(false);
-    };
+    // Check authentication on client-side
+    const userRole = getUserRole();
+    const authenticated = userRole === requiredRole;
+    
+    setIsAuthenticated(authenticated);
+    setIsLoading(false);
+    
+    if (!authenticated) {
+      // Redirect to home page if not authenticated with correct role
+      router.push('/');
+    }
+  }, [requiredRole, router]);
 
-    checkAuth();
-  }, [router, redirectUrl]);
-
-  return { isLoading, isManager };
+  return { isLoading, isAuthenticated };
 };
 
 // Create a login function for demo purposes
@@ -57,10 +51,18 @@ export const login = (role: UserRole) => {
   
   // Redirect based on role
   if (typeof window !== 'undefined') {
-    if (role === 'manager') {
-      window.location.href = '/manager';
-    } else {
-      window.location.href = '/';
+    switch (role) {
+      case 'manager':
+        window.location.href = '/manager';
+        break;
+      case 'waiter':
+        window.location.href = '/waiter';
+        break;
+      case 'chef':
+        window.location.href = '/chef';
+        break;
+      default:
+        window.location.href = '/';
     }
   }
 };
@@ -71,4 +73,10 @@ export const logout = () => {
     localStorage.removeItem('userRole');
     window.location.href = '/';
   }
+};
+
+// Check if the user has a specific role
+export const hasRole = (requiredRole: UserRole): boolean => {
+  const userRole = getUserRole();
+  return userRole === requiredRole;
 }; 

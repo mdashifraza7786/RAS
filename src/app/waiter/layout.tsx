@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import DashboardSidebar from '@/components/DashboardSidebar';
+import WaiterSidebar from '@/components/WaiterSidebar';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { 
   FaSignOutAlt,
@@ -13,10 +13,10 @@ import { useManagerAuth, logout } from '../utils/auth';
 // Store scroll positions for different routes
 const scrollPositions = new Map<string, number>();
 
-export default function ManagerLayout({
+export default function WaiterLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -25,10 +25,10 @@ export default function ManagerLayout({
   const prevPathRef = useRef<string>(pathname);
   const initialRenderRef = useRef(true);
   
-  // Use the manager authentication hook
-  const { isLoading, isManager } = useManagerAuth('/login');
+  // Use authentication hook to protect waiter routes
+  const { isAuthenticated = false, isLoading } = useManagerAuth('waiter');
 
-  const logoutHandler = () => {
+  const handleLogout = () => {
     logout();
   };
 
@@ -105,16 +105,16 @@ export default function ManagerLayout({
     );
   }
 
-  // Not authenticated/authorized as manager
-  if (!isManager) {
-    return null;
+  // Not authenticated
+  if (!isAuthenticated) {
+    return null; // Auth hook will handle redirect
   }
 
   return (
     <div className="h-screen flex overflow-hidden">
       {/* Sidebar - Fixed width - Only visible on desktop */}
       <aside className="hidden md:block w-64 h-full flex-shrink-0">
-        <DashboardSidebar />
+        <WaiterSidebar />
       </aside>
       
       {/* Mobile sidebar */}
@@ -124,12 +124,12 @@ export default function ManagerLayout({
         md:hidden transition duration-200 ease-in-out z-30
         w-64
       `}>
-        <DashboardSidebar />
+        <WaiterSidebar />
         
         {/* Logout button for mobile */}
         <div className="absolute bottom-0 left-0 w-full px-5 py-4 border-t border-gray-200 bg-white">
           <button 
-            onClick={logoutHandler}
+            onClick={handleLogout}
             className="flex w-full items-center px-4 py-3 text-sm font-medium rounded-md text-gray-700 hover:bg-indigo-50 transition-colors"
           >
             <FaSignOutAlt className="w-5 h-5 mr-3" />
@@ -142,7 +142,7 @@ export default function ManagerLayout({
       <div className="flex-1 flex flex-col">
         {/* Mobile Menu Button */}
         <div className="md:hidden bg-indigo-600 text-white p-4 flex justify-between items-center">
-          <h1 className="text-xl font-bold">Manager Dashboard</h1>
+          <h1 className="text-xl font-bold">Waiter Dashboard</h1>
           <button 
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="p-2 focus:outline-none"
@@ -150,9 +150,6 @@ export default function ManagerLayout({
             {isMobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
           </button>
         </div>
-
-        {/* Header */}
-       
         
         {/* Page Content - Only this should scroll */}
         <main 

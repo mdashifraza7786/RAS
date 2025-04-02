@@ -4,11 +4,7 @@ import {
   FaUtensils, 
   FaUsers, 
   FaClipboardList, 
-  FaBoxes, 
-  FaRegCreditCard, 
-  FaChartBar,
-  FaTable,
-  
+  FaReceipt
 } from 'react-icons/fa';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -38,14 +34,14 @@ const NavItem = ({ icon, label, href, isActive = false }: NavItemProps) => {
   );
 };
 
-const DashboardSidebar = () => {
+const WaiterSidebar = () => {
   const pathname = usePathname();
   
   return (
     <div className="h-full bg-white border-r border-gray-200 flex flex-col">
       <div className="p-5">
         <h2 className="text-xl font-bold text-gray-800 mb-1">Dashboard</h2>
-        <p className="text-sm text-gray-500">Manage your restaurant</p>
+        <p className="text-sm text-gray-500">Waiter Portal</p>
       </div>
       
       <div className="flex-1 overflow-y-auto px-2">
@@ -53,57 +49,37 @@ const DashboardSidebar = () => {
           <NavItem 
             icon={<FaThLarge />} 
             label="Dashboard" 
-            href="/manager" 
-            isActive={pathname === '/manager'}
+            href="/waiter" 
+            isActive={pathname === '/waiter'}
           />
           <NavItem 
             icon={<FaUtensils />} 
-            label="Menu Management" 
-            href="/manager/menu" 
-            isActive={pathname?.startsWith('/manager/menu')}
+            label="Tables" 
+            href="/waiter/tables" 
+            isActive={pathname?.startsWith('/waiter/tables')}
           />
           <NavItem 
             icon={<FaClipboardList />} 
             label="Orders" 
-            href="/manager/orders" 
-            isActive={pathname?.startsWith('/manager/orders')}
+            href="/waiter/orders" 
+            isActive={pathname?.startsWith('/waiter/orders')}
           />
           <NavItem 
-            icon={<FaTable />} 
-            label="Tables" 
-            href="/manager/tables" 
-            isActive={pathname?.startsWith('/manager/tables')}
+            icon={<FaReceipt />} 
+            label="Bills" 
+            href="/waiter/bills" 
+            isActive={pathname?.startsWith('/waiter/bills')}
           />
           <NavItem 
             icon={<FaUsers />} 
-            label="Staff" 
-            href="/manager/staff" 
-            isActive={pathname?.startsWith('/manager/staff')}
-          />
-          <NavItem 
-            icon={<FaBoxes />} 
-            label="Inventory" 
-            href="/manager/inventory" 
-            isActive={pathname?.startsWith('/manager/inventory')}
-          />
-          <NavItem 
-            icon={<FaRegCreditCard />} 
-            label="Payments" 
-            href="/manager/payments" 
-            isActive={pathname?.startsWith('/manager/payments')}
-          />
-          <NavItem 
-            icon={<FaChartBar />} 
-            label="Reports" 
-            href="/manager/reports" 
-            isActive={pathname?.startsWith('/manager/reports')}
+            label="Customers" 
+            href="/waiter/customers" 
+            isActive={pathname?.startsWith('/waiter/customers')}
           />
         </ul>
       </div>
-      
-      
     </div>
   );
 };
 
-export default DashboardSidebar; 
+export default WaiterSidebar; 

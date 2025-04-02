@@ -6,7 +6,7 @@ import { FaUserTie, FaUsers, FaHome } from 'react-icons/fa';
 import Link from 'next/link';
 
 export default function LoginPage() {
-  const handleLogin = (role: 'manager' | 'staff') => {
+  const handleLogin = (role: 'manager' | 'waiter' | 'chef' | 'guest') => {
     login(role);
   };
 
@@ -34,11 +34,19 @@ export default function LoginPage() {
               </button>
               
               <button
-                onClick={() => handleLogin('staff')}
+                onClick={() => handleLogin('waiter')}
                 className="w-full flex items-center justify-center py-3 px-4 border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-50 text-gray-700 font-medium transition-colors"
               >
                 <FaUsers className="mr-3" />
-                Login as Staff
+                Login as Waiter
+              </button>
+
+              <button
+                onClick={() => handleLogin('chef')}
+                className="w-full flex items-center justify-center py-3 px-4 border border-gray-300 rounded-md shadow-sm bg-white hover:bg-gray-50 text-gray-700 font-medium transition-colors"
+              >
+                <FaUsers className="mr-3" />
+                Login as Chef
               </button>
               
               <Link href="/" className="w-full flex items-center justify-center py-3 px-4 border border-gray-200 rounded-md text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium transition-colors">
