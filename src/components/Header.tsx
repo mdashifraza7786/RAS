@@ -1,3 +1,5 @@
+'use client';
+import { logout } from '@/app/utils/auth';
 import { FaHome, FaSignOutAlt } from 'react-icons/fa';
 
 const Header = () => {
@@ -9,7 +11,8 @@ const Header = () => {
       </div>
       <div className="flex gap-3 sm:gap-4">
        
-        <button className="flex items-center bg-[#2c5f95] px-3 sm:px-4 py-1.5 sm:py-2 rounded hover:bg-[#244b76] transition-colors text-xs sm:text-sm">
+        <button className="flex items-center bg-[#2c5f95] px-3 sm:px-4 py-1.5 sm:py-2 rounded hover:bg-[#244b76] transition-colors text-xs sm:text-sm" 
+          onClick={()=>logout()}>
           <FaSignOutAlt className="mr-2 text-sm sm:text-base" />
           <span>Logout</span>
         </button>

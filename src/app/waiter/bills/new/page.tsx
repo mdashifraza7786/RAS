@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FaArrowLeft, FaReceipt, FaTimes, FaPlus, FaCheck, FaPrint, FaWhatsapp, FaEnvelope } from 'react-icons/fa';
+import { FaArrowLeft, FaReceipt, FaTimes, FaCheck, FaPrint, FaWhatsapp, FaEnvelope } from 'react-icons/fa';
 import Link from 'next/link';
 
 // Types

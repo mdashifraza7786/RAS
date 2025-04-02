@@ -3,80 +3,100 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-// Simple roles that would be stored in a real authentication system
+// Define possible user roles
 export type UserRole = 'manager' | 'waiter' | 'chef' | 'guest';
 
-// Function to set the user role in localStorage (for demo purposes)
+// LocalStorage keys
+const USER_ROLE_KEY = 'restaurant_user_role';
+
+/**
+ * Set the user role in localStorage
+ */
 export const setUserRole = (role: UserRole) => {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('userRole', role);
+    localStorage.setItem(USER_ROLE_KEY, role);
   }
 };
 
-// Function to get the current user role from localStorage
-export const getUserRole = (): UserRole | null => {
+/**
+ * Get the current user role from localStorage
+ */
+export const getUserRole = (): UserRole => {
   if (typeof window !== 'undefined') {
-    const role = localStorage.getItem('userRole') as UserRole | null;
-    return role;
+    const role = localStorage.getItem(USER_ROLE_KEY);
+    if (role && (role === 'manager' || role === 'waiter' || role === 'chef' || role === 'guest')) {
+      return role as UserRole;
+    }
   }
-  return null;
+  return 'guest';
 };
 
-// Custom hook to check if the current user is a manager
-export const useManagerAuth = (requiredRole: UserRole = 'manager') => {
+/**
+ * Check if the current user has the required role
+ */
+export const hasRole = (requiredRole: UserRole | UserRole[]): boolean => {
+  const currentRole = getUserRole();
+  
+  if (Array.isArray(requiredRole)) {
+    return requiredRole.includes(currentRole);
+  }
+  
+  return currentRole === requiredRole;
+};
+
+/**
+ * Custom hook to protect routes based on user role
+ */
+export const useManagerAuth = (
+  requiredRole: UserRole | UserRole[] = 'manager',
+  redirectPath: string = '/login'
+) => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
+  const [isManager, setIsManager] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Check authentication on client-side
-    const userRole = getUserRole();
-    const authenticated = userRole === requiredRole;
+    // Check if the user has the required role
+    const userHasRequiredRole = hasRole(requiredRole);
     
-    setIsAuthenticated(authenticated);
-    setIsLoading(false);
-    
-    if (!authenticated) {
-      // Redirect to home page if not authenticated with correct role
-      router.push('/');
+    if (!userHasRequiredRole) {
+      // If not manager, redirect to the specified path
+      router.push(redirectPath);
+      setIsAuthenticated(false);
+    } else {
+      setIsAuthenticated(true);
     }
-  }, [requiredRole, router]);
+    
+    // For backward compatibility
+    setIsManager(getUserRole() === 'manager');
+    
+    setIsLoading(false);
+  }, [requiredRole, redirectPath, router]);
 
-  return { isLoading, isAuthenticated };
+  return { isLoading, isManager, isAuthenticated };
 };
 
-// Create a login function for demo purposes
-export const login = (role: UserRole) => {
+/**
+ * Log in a user with a specific role
+ */
+export const login = (role: UserRole, redirectPath?: string) => {
   setUserRole(role);
   
-  // Redirect based on role
-  if (typeof window !== 'undefined') {
-    switch (role) {
-      case 'manager':
-        window.location.href = '/manager';
-        break;
-      case 'waiter':
-        window.location.href = '/waiter';
-        break;
-      case 'chef':
-        window.location.href = '/chef';
-        break;
-      default:
-        window.location.href = '/';
+  if (redirectPath) {
+    if (typeof window !== 'undefined') {
+      window.location.href = redirectPath;
     }
   }
 };
 
-// Create a logout function
-export const logout = () => {
+/**
+ * Log out the current user
+ */
+export const logout = (redirectPath: string = '/') => {
+  setUserRole('guest');
+  
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('userRole');
-    window.location.href = '/';
+    window.location.href = redirectPath;
   }
-};
-
-// Check if the user has a specific role
-export const hasRole = (requiredRole: UserRole): boolean => {
-  const userRole = getUserRole();
-  return userRole === requiredRole;
 }; 
