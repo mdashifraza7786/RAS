@@ -92,7 +92,14 @@ const orderDetails: Order = {
   notes: 'Customer celebrating anniversary, extra care for presentation.'
 };
 
-export default function OrderDetailPage({ params }: { params: { orderId: string } }) {
+interface PageProps {
+  params: {
+    orderId: string;
+  };
+  searchParams?: { [key: string]: string | string[] | undefined };
+}
+
+export default function OrderDetailPage({ params }: PageProps) {
   const router = useRouter();
   const [order] = useState<Order>(orderDetails);
   
