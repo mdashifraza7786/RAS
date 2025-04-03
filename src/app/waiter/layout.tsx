@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import WaiterSidebar from '@/components/WaiterSidebar';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { 
   FaSignOutAlt,
   FaBars,
   FaTimes
 } from 'react-icons/fa';
-import { useManagerAuth, logout } from '../utils/auth';
+import { signOut, useSession } from 'next-auth/react';
 
 // Store scroll positions for different routes
 const scrollPositions = new Map<string, number>();
@@ -24,12 +24,16 @@ export default function WaiterLayout({
   const mainContentRef = useRef<HTMLDivElement>(null);
   const prevPathRef = useRef<string>(pathname);
   const initialRenderRef = useRef(true);
+  const router = useRouter();
   
-  // Use authentication hook to protect waiter routes
-  const { isAuthenticated = false, isLoading } = useManagerAuth('waiter');
+  // Use NextAuth session for authentication
+  const { data: session, status } = useSession();
+  const isLoading = status === 'loading';
+  const isWaiter = session?.user?.role === 'waiter';
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await signOut({ redirect: false });
+    router.push('/login');
   };
 
   // Save current scroll position before navigation
@@ -105,8 +109,8 @@ export default function WaiterLayout({
     );
   }
 
-  // Not authenticated
-  if (!isAuthenticated) {
+  // Not authenticated as waiter
+  if (!isWaiter) {
     return null; // Auth hook will handle redirect
   }
 

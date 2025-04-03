@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { LayoutProvider } from '@/components/LayoutProvider';
+import { SessionProvider } from '@/providers/SessionProvider';
 
 export const metadata: Metadata = {
   title: "Restaurant Management System",
@@ -15,9 +16,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="">
       <body className="h-full">
-        <LayoutProvider>
-          {children}
-        </LayoutProvider>
+        <SessionProvider>
+          <LayoutProvider>
+            {children}
+          </LayoutProvider>
+        </SessionProvider>
       </body>
     </html>
   );

@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import DashboardSidebar from '@/components/DashboardSidebar';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { 
   FaSignOutAlt,
   FaBars,
   FaTimes
 } from 'react-icons/fa';
-import { useManagerAuth, logout } from '../utils/auth';
+import { signOut, useSession } from 'next-auth/react';
 
 // Store scroll positions for different routes
 const scrollPositions = new Map<string, number>();
@@ -24,12 +24,16 @@ export default function ManagerLayout({
   const mainContentRef = useRef<HTMLDivElement>(null);
   const prevPathRef = useRef<string>(pathname);
   const initialRenderRef = useRef(true);
+  const router = useRouter();
   
-  // Use the manager authentication hook
-  const { isLoading, isManager } = useManagerAuth('manager');
+  // Use NextAuth session for authentication
+  const { data: session, status } = useSession();
+  const isLoading = status === 'loading';
+  const isManager = session?.user?.role === 'manager';
 
-  const logoutHandler = () => {
-    logout();
+  const handleLogout = async () => {
+    await signOut({ redirect: false });
+    router.push('/login');
   };
 
   // Save current scroll position before navigation
@@ -129,7 +133,7 @@ export default function ManagerLayout({
         {/* Logout button for mobile */}
         <div className="absolute bottom-0 left-0 w-full px-5 py-4 border-t border-gray-200 bg-white">
           <button 
-            onClick={logoutHandler}
+            onClick={handleLogout}
             className="flex w-full items-center px-4 py-3 text-sm font-medium rounded-md text-gray-700 hover:bg-indigo-50 transition-colors"
           >
             <FaSignOutAlt className="w-5 h-5 mr-3" />
