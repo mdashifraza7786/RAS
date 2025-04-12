@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FaSearch,
   FaFilter,
@@ -19,99 +19,38 @@ import {
   FaDownload,
   FaBuilding
 } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
 
-// Sample payments data
-const initialPayments = [
-  {
-    id: 'PAY-5621',
-    orderId: '#3842',
-    customer: 'Raj Mehta',
-    date: '2023-04-02T10:35:00',
-    amount: 842.50,
-    method: 'Credit Card',
-    status: 'completed',
-    cardInfo: '**** **** **** 4512'
-  },
-  {
-    id: 'PAY-5620',
-    orderId: '#3841',
-    customer: 'Priya Singh',
-    date: '2023-04-02T09:50:00',
-    amount: 655.00,
-    method: 'UPI',
-    status: 'completed',
-    cardInfo: 'priya@upibank'
-  },
-  {
-    id: 'PAY-5619',
-    orderId: '#3840',
-    customer: 'Aman Verma',
-    date: '2023-04-02T09:30:00',
-    amount: 1245.00,
-    method: 'Cash',
-    status: 'completed',
-    cardInfo: ''
-  },
-  {
-    id: 'PAY-5618',
-    orderId: '#3839',
-    customer: 'Nisha Patel',
-    date: '2023-04-02T08:45:00',
-    amount: 320.00,
-    method: 'Credit Card',
-    status: 'completed',
-    cardInfo: '**** **** **** 7890'
-  },
-  {
-    id: 'PAY-5617',
-    orderId: '#3838',
-    customer: 'Sandeep Kumar',
-    date: '2023-04-01T20:10:00',
-    amount: 920.50,
-    method: 'Debit Card',
-    status: 'refunded',
-    cardInfo: '**** **** **** 3456'
-  },
-  {
-    id: 'PAY-5616',
-    orderId: '#3837',
-    customer: 'Kavita Sharma',
-    date: '2023-04-01T18:45:00',
-    amount: 425.00,
-    method: 'UPI',
-    status: 'completed',
-    cardInfo: 'kavita@upibank'
-  },
-  {
-    id: 'PAY-5615',
-    orderId: '#3836',
-    customer: 'Mohit Agarwal',
-    date: '2023-04-01T17:30:00',
-    amount: 1100.00,
-    method: 'Credit Card',
-    status: 'pending',
-    cardInfo: '**** **** **** 1234'
-  },
-  {
-    id: 'PAY-5614',
-    orderId: '#3835',
-    customer: 'Sneha Reddy',
-    date: '2023-04-01T15:15:00',
-    amount: 750.50,
-    method: 'Debit Card',
-    status: 'completed',
-    cardInfo: '**** **** **** 5678'
-  }
-];
+// Payment type definition
+interface Payment {
+  _id: string;
+  order: {
+    _id: string;
+    orderNumber: string;
+    items: any[];
+  };
+  total: number;
+  subtotal?: number;
+  tax?: number;
+  tip?: number;
+  discount?: number;
+  paymentMethod: string;
+  paymentStatus: string;
+  paidAt: string;
+  createdAt: string;
+  notes?: string;
+  cardInfo?: string;
+  customer?: string;
+}
 
 // Payment method options for filtering
 const paymentMethods = [
-  'All Methods', 'Credit Card', 'Debit Card', 'UPI', 'Cash', 'Wallet'
+  'All Methods', 'Card', 'UPI', 'Cash', 'Wallet'
 ];
 
 // Payment status options for filtering
 const paymentStatuses = [
-  'All Statuses', 'Completed', 'Pending', 'Refunded', 'Failed'
+  'All Statuses', 'Paid', 'Pending'
 ];
 
 // Date range options for filtering
@@ -121,38 +60,6 @@ const dateRangeOptions = [
   { value: 'yesterday', label: 'Yesterday' },
   { value: 'week', label: 'This Week' },
   { value: 'month', label: 'This Month' }
-];
-
-// Payment summary stats
-const paymentStats = [
-  { 
-    title: 'Total Revenue', 
-    value: '₹178,560', 
-    icon: <FaMoneyBillWave />, 
-    change: '+8.2% from last month',
-    changeType: 'positive' as const
-  },
-  { 
-    title: 'Transactions', 
-    value: '342', 
-    icon: <FaFileInvoiceDollar />, 
-    change: '+12.5% from last month',
-    changeType: 'positive' as const
-  },
-  { 
-    title: 'Average Order', 
-    value: '₹522', 
-    icon: <FaChartLine />, 
-    change: '-2.3% from last month',
-    changeType: 'negative' as const
-  },
-  { 
-    title: 'Refunded', 
-    value: '₹3,250', 
-    icon: <FaWallet />, 
-    change: 'Total for this month',
-    changeType: 'neutral' as const
-  }
 ];
 
 // Format date string to a readable format
@@ -172,7 +79,7 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    maximumFractionDigits: 2
+    maximumFractionDigits: 0
   }).format(amount);
 };
 
@@ -210,7 +117,7 @@ const isDateInRange = (dateString: string, range: string): boolean => {
 // Get appropriate status badge styling
 const getStatusBadgeStyles = (status: string) => {
   switch (status.toLowerCase()) {
-    case 'completed':
+    case 'paid':
       return 'bg-green-100 text-green-800';
     case 'pending':
       return 'bg-yellow-100 text-yellow-800';
@@ -226,7 +133,7 @@ const getStatusBadgeStyles = (status: string) => {
 // Get appropriate status icon
 const getStatusIcon = (status: string) => {
   switch (status.toLowerCase()) {
-    case 'completed':
+    case 'paid':
       return <FaCheckCircle className="mr-1" />;
     case 'pending':
       return <FaRegClock className="mr-1" />;
@@ -254,7 +161,6 @@ const getMethodIcon = (method: string) => {
   }
 };
 
-// Stat Card Component
 interface StatCardProps {
   title: string;
   value: string;
@@ -264,107 +170,273 @@ interface StatCardProps {
 }
 
 const StatCard = ({ title, value, icon, change, changeType = 'neutral' }: StatCardProps) => {
-  const changeColorClass = 
-    changeType === 'positive' ? 'text-green-600' : 
-    changeType === 'negative' ? 'text-red-600' : 
-    'text-gray-600';
-  
   return (
-    <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
-      <div className="flex justify-between items-start">
+    <div className="bg-white p-5 rounded-lg shadow-sm border-l-4 border-indigo-500">
+      <div className="flex justify-between">
         <div>
-          <p className="text-gray-500 text-sm font-medium mb-1">{title}</p>
-          <h3 className="text-2xl font-bold text-gray-800">{value}</h3>
+          <h3 className="text-lg font-medium text-gray-800 mb-2">{title}</h3>
+          <p className="text-3xl font-bold text-gray-900">{value}</p>
+          {change && (
+            <p className={`mt-1 text-sm ${
+              changeType === 'positive' ? 'text-green-600' : 
+              changeType === 'negative' ? 'text-red-600' : 
+              'text-gray-500'
+            }`}>
+              {change}
+            </p>
+          )}
         </div>
-        <div className="rounded-full p-2.5 bg-indigo-100 text-indigo-600">
+        <div className="text-2xl text-indigo-500">
           {icon}
         </div>
       </div>
-      {change && (
-        <p className={`text-sm mt-4 ${changeColorClass}`}>
-          {change}
-        </p>
-      )}
     </div>
   );
 };
 
 export default function PaymentsPage() {
-  const [payments] = useState(initialPayments);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMethod, setSelectedMethod] = useState('All Methods');
   const [selectedStatus, setSelectedStatus] = useState('All Statuses');
-  const [dateRange, setDateRange] = useState('all');
-  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
-  const [viewInvoice, setViewInvoice] = useState<string | null>(null);
-
-  // Filter payments based on search query, selected method, selected status, and date range
-  const filteredPayments = payments.filter(payment => {
-    // Match search query
-    const matchesSearch = 
-      payment.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      payment.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      payment.customer.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    // Match payment method
-    const matchesMethod = 
-      selectedMethod === 'All Methods' || 
-      payment.method === selectedMethod;
-    
-    // Match status
-    const matchesStatus = 
-      selectedStatus === 'All Statuses' || 
-      payment.status.toLowerCase() === selectedStatus.toLowerCase();
-    
-    // Match date range
-    const matchesDateRange = isDateInRange(payment.date, dateRange);
-    
-    return matchesSearch && matchesMethod && matchesStatus && matchesDateRange;
+  const [selectedDateRange, setSelectedDateRange] = useState('all');
+  const [expandedPayment, setExpandedPayment] = useState<string | null>(null);
+  const [paymentStats, setPaymentStats] = useState({
+    totalRevenue: 0,
+    transactionCount: 0,
+    averageOrderValue: 0,
+    refundedAmount: 0
+  });
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 10,
+    pages: 0
   });
 
-  // Toggle payment details expansion
-  const togglePaymentDetails = (paymentId: string) => {
-    if (selectedPaymentId === paymentId) {
-      setSelectedPaymentId(null);
-    } else {
-      setSelectedPaymentId(paymentId);
+  // Fetch payments data when filters change
+  useEffect(() => {
+    fetchPayments();
+  }, [selectedMethod, selectedDateRange, pagination.page]);
+
+  // Fetch payments from API
+  const fetchPayments = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Build query string
+      const queryParams = new URLSearchParams();
+      
+      // Date range
+      if (selectedDateRange !== 'all') {
+        const now = new Date();
+        let startDate = new Date();
+        
+        if (selectedDateRange === 'today') {
+          startDate.setHours(0, 0, 0, 0);
+        } else if (selectedDateRange === 'yesterday') {
+          startDate.setDate(startDate.getDate() - 1);
+          startDate.setHours(0, 0, 0, 0);
+        } else if (selectedDateRange === 'week') {
+          startDate.setDate(startDate.getDate() - 7);
+        } else if (selectedDateRange === 'month') {
+          startDate.setMonth(startDate.getMonth() - 1);
+        }
+        
+        queryParams.append('startDate', startDate.toISOString());
+        queryParams.append('endDate', now.toISOString());
+      }
+      
+      // Payment method
+      if (selectedMethod !== 'All Methods') {
+        queryParams.append('paymentMethod', selectedMethod);
+      }
+      
+      // Pagination
+      queryParams.append('page', pagination.page.toString());
+      queryParams.append('limit', pagination.limit.toString());
+      
+      const response = await fetch(`/api/manager/payments?${queryParams.toString()}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch payments');
+      }
+      
+      const data = await response.json();
+
+      // Check the structure of the data to determine where the bills are
+      let billsData = [];
+      if (Array.isArray(data)) {
+        // If the API returns an array directly
+        billsData = data;
+      } else if (data.bills && Array.isArray(data.bills)) {
+        // If the API returns {bills: [...]}
+        billsData = data.bills;
+      } else if (data.data && Array.isArray(data.data)) {
+        // If the API returns {data: [...]}
+        billsData = data.data;
+      } else {
+        console.error('Unexpected API response structure:', data);
+        throw new Error('Invalid data structure received from API');
+      }
+      
+      setPayments(billsData);
+      
+      // Set pagination if available
+      if (data.pagination) {
+        setPagination(data.pagination);
+      } else {
+        setPagination({
+          total: billsData.length,
+          page: 1,
+          limit: 10,
+          pages: Math.ceil(billsData.length / 10)
+        });
+      }
+      
+      // Set stats
+      if (data.stats) {
+        setPaymentStats({
+          totalRevenue: data.stats.totalRevenue || 0,
+          transactionCount: billsData.length || 0,
+          averageOrderValue: data.stats.averageOrderValue || 0,
+          refundedAmount: data.stats.refundedAmount || 0
+        });
+      } else {
+        // Calculate basic stats if not provided
+        const totalRevenue = billsData.reduce((sum: number, bill: Payment) => sum + (bill.total || 0), 0);
+        setPaymentStats({
+          totalRevenue,
+          transactionCount: billsData.length,
+          averageOrderValue: billsData.length ? totalRevenue / billsData.length : 0,
+          refundedAmount: 0
+        });
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred while fetching payments');
+      toast.error('Failed to load payment data');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Get current viewed payment for invoice
-  const currentInvoicePayment = viewInvoice 
-    ? payments.find(payment => payment.id === viewInvoice) 
-    : null;
+  // Filter payments by status and search query
+  const filteredPayments = payments.filter((payment) => {
+    // Status filter (case insensitive comparison)
+    const matchesStatus = selectedStatus === 'All Statuses' || 
+                          payment.paymentStatus.toLowerCase() === selectedStatus.toLowerCase();
+    
+    // Search query
+    const matchesSearch = searchQuery === '' || 
+                          payment.order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (payment.customer && payment.customer.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    // Method filter (handle combined card options)
+    let matchesMethod = true;
+    if (selectedMethod !== 'All Methods') {
+      if (selectedMethod === 'Card') {
+        matchesMethod = payment.paymentMethod.toLowerCase() === 'card' || 
+                        payment.paymentMethod.toLowerCase().includes('card');
+      } else {
+        matchesMethod = payment.paymentMethod.toLowerCase() === selectedMethod.toLowerCase();
+      }
+    }
+    
+    return matchesStatus && matchesSearch && matchesMethod;
+  });
+
+  // Toggle payment details view
+  const togglePaymentDetails = (paymentId: string) => {
+    if (expandedPayment === paymentId) {
+      setExpandedPayment(null);
+    } else {
+      setExpandedPayment(paymentId);
+    }
+  };
+
+  // Handle payment status update
+  const updatePaymentStatus = async (paymentId: string, newStatus: string) => {
+    try {
+      const response = await fetch('/api/manager/payments', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          billId: paymentId,
+          status: newStatus.toLowerCase()
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update payment status');
+      }
+      
+      toast.success(`Payment status updated to ${newStatus}`);
+      fetchPayments(); // Refresh the payments list
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update payment status');
+    }
+  };
+
+  // Parse value from stats
+  const getStatValue = (key: keyof typeof paymentStats, prefix = '') => {
+    const value = paymentStats[key];
+    if (typeof value === 'number') {
+      if (key === 'transactionCount') {
+        return `${value}`;
+      }
+      return formatCurrency(value);
+    }
+    return prefix + value;
+  };
 
   return (
     <div className="p-8">
       {/* Page Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-800">Payment Management</h1>
-        <p className="text-gray-600">Monitor and manage all payment transactions</p>
+        <h1 className="text-2xl font-bold text-gray-800">Payments Management</h1>
+        <p className="text-gray-600">Track and manage all payment transactions</p>
       </div>
       
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {paymentStats.map((stat, index) => (
-          <StatCard 
-            key={index}
-            title={stat.title} 
-            value={stat.value} 
-            icon={stat.icon} 
-            change={stat.change}
-            changeType={stat.changeType}
-          />
-        ))}
+      {/* Payments Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <StatCard 
+          title="Total Revenue" 
+          value={getStatValue('totalRevenue')}
+          icon={<FaMoneyBillWave />}
+        />
+        <StatCard 
+          title="Transactions" 
+          value={getStatValue('transactionCount')}
+          icon={<FaFileInvoiceDollar />}
+        />
+        <StatCard 
+          title="Average Order" 
+          value={getStatValue('averageOrderValue')}
+          icon={<FaChartLine />}
+        />
       </div>
       
-      {/* Filters and Search */}
+      {/* Search and Filters */}
       <div className="bg-white p-5 rounded-lg shadow-sm mb-6">
-        <div className="flex flex-col md:flex-row justify-between mb-5">
-          <div className="relative mb-4 md:mb-0 md:w-64">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+          <div className="relative flex-1 max-w-md">
             <input
               type="text"
-              placeholder="Search by ID, order or customer..."
+              placeholder="Search by order number or customer..."
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -372,14 +444,27 @@ export default function PaymentsPage() {
             <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           </div>
           
-          <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+          <div className="flex flex-wrap gap-3">
+            <div className="relative">
+              <select 
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={selectedDateRange}
+                onChange={(e) => setSelectedDateRange(e.target.value)}
+              >
+                {dateRangeOptions.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            </div>
+            
             <div className="relative">
               <select 
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 value={selectedMethod}
                 onChange={(e) => setSelectedMethod(e.target.value)}
               >
-                {paymentMethods.map((method) => (
+                {paymentMethods.map(method => (
                   <option key={method} value={method}>{method}</option>
                 ))}
               </select>
@@ -392,343 +477,543 @@ export default function PaymentsPage() {
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
               >
-                {paymentStatuses.map((status) => (
+                {paymentStatuses.map(status => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
               <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             </div>
             
-            <div className="relative">
-              <select 
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-              >
-                {dateRangeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-              <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            </div>
-          </div>
-        </div>
-        
-        {/* Payment Summary Display */}
-        <div className="flex justify-between items-center text-sm text-gray-600">
-          <div>
-            Showing <span className="font-semibold">{filteredPayments.length}</span> of <span className="font-semibold">{payments.length}</span> payments
-          </div>
-          
-          <div className="flex items-center">
-            <span className="mr-2">Sort by:</span>
-            <button className="flex items-center px-3 py-1 rounded border border-gray-300 hover:bg-gray-50">
-              <span className="mr-1">Date</span>
-              <FaSortAmountDown className="text-xs" />
+            <button 
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+              onClick={() => {
+                // Create a hidden iframe for printing report
+                const iframeId = "report-print-frame";
+                let printFrame = document.getElementById(iframeId) as HTMLIFrameElement;
+                
+                // Create the iframe if it doesn't exist
+                if (!printFrame) {
+                  printFrame = document.createElement('iframe');
+                  printFrame.id = iframeId;
+                  printFrame.style.position = 'fixed';
+                  printFrame.style.right = '0';
+                  printFrame.style.bottom = '0';
+                  printFrame.style.width = '0';
+                  printFrame.style.height = '0';
+                  printFrame.style.border = '0';
+                  document.body.appendChild(printFrame);
+                }
+                
+                // Create the report HTML
+                const reportHTML = `
+                  <html>
+                    <head>
+                      <title>Payment Transactions Report</title>
+                      <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        .report { max-width: 800px; margin: 0 auto; }
+                        .header { text-align: center; margin-bottom: 30px; }
+                        table { width: 100%; border-collapse: collapse; }
+                        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+                        th { background-color: #f2f2f2; }
+                        .footer { text-align: center; margin-top: 30px; font-size: 12px; color: #666; }
+                        .summary { margin: 20px 0; padding: 15px; background-color: #f8f8f8; }
+                        .summary div { margin: 5px 0; }
+                        .filters { margin-bottom: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 4px; }
+                        @media print {
+                          body { margin: 0; padding: 15px; }
+                          .report { max-width: 100%; }
+                        }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="report">
+                        <div class="header">
+                          <h1>Payment Transactions Report</h1>
+                          <p>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
+                        </div>
+                        
+                        <div class="filters">
+                          <strong>Filters:</strong> 
+                          <span>Date Range: ${dateRangeOptions.find(o => o.value === selectedDateRange)?.label || 'All Time'}</span> | 
+                          <span>Payment Method: ${selectedMethod}</span> | 
+                          <span>Status: ${selectedStatus}</span>
+                          ${searchQuery ? `| <span>Search: "${searchQuery}"</span>` : ''}
+                        </div>
+                        
+                        <div class="summary">
+                          <h3>Summary</h3>
+                          <div><strong>Total Revenue:</strong> ${formatCurrency(paymentStats.totalRevenue)}</div>
+                          <div><strong>Transactions:</strong> ${paymentStats.transactionCount}</div>
+                          <div><strong>Average Order Value:</strong> ${formatCurrency(paymentStats.averageOrderValue)}</div>
+                        </div>
+                        
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Order #</th>
+                              <th>Date</th>
+                              <th>Amount</th>
+                              <th>Method</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${filteredPayments.map(payment => `
+                              <tr>
+                                <td>${payment.order.orderNumber}</td>
+                                <td>${formatDate(payment.paidAt)}</td>
+                                <td>${formatCurrency(payment.total)}</td>
+                                <td>${payment.paymentMethod}</td>
+                                <td>${payment.paymentStatus}</td>
+                              </tr>
+                            `).join('')}
+                          </tbody>
+                        </table>
+                        
+                        <div class="footer">
+                          <p>Generated at ${new Date().toLocaleString()}</p>
+                        </div>
+                      </div>
+                    </body>
+                  </html>
+                `;
+                
+                // Set the iframe content
+                const frameDoc = printFrame.contentWindow?.document;
+                if (frameDoc) {
+                  frameDoc.open();
+                  frameDoc.write(reportHTML);
+                  frameDoc.close();
+                  
+                  // Wait for the iframe content to fully load before printing
+                  setTimeout(() => {
+                    try {
+                      printFrame.contentWindow?.focus();
+                      printFrame.contentWindow?.print();
+                    } catch (err) {
+                      console.error('Printing failed:', err);
+                      toast.error('Failed to print report');
+                    }
+                  }, 500);
+                }
+              }}
+            >
+              <FaPrint className="mr-2" size={14} />
+              Print Report
             </button>
           </div>
         </div>
       </div>
       
-      {/* Payments List */}
+      {/* Payments Table */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Payment ID</th>
-                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
-                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Order</th>
+              <tr className="bg-gray-50">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Order Number
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Amount
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Payment Method
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
-            <tbody>
-              {filteredPayments.map((payment) => (
-                <React.Fragment key={payment.id}>
-                  <tr 
-                    className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${selectedPaymentId === payment.id ? 'bg-indigo-50' : ''}`}
-                    onClick={() => togglePaymentDetails(payment.id)}
-                  >
-                    <td className="px-6 py-4 text-sm font-medium text-gray-800 whitespace-nowrap">
-                      {payment.id}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
-                      {payment.customer}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-800 whitespace-nowrap">
-                      {formatCurrency(payment.amount)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {getMethodIcon(payment.method)}
-                        <span>{payment.method}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
-                      {formatDate(payment.date)}
-                    </td>
-                    <td className="px-6 py-4 text-sm whitespace-nowrap">
-                      <span 
-                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getStatusBadgeStyles(payment.status)}`}
-                      >
-                        {getStatusIcon(payment.status)}
-                        {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-indigo-600 font-medium whitespace-nowrap">
-                      {payment.orderId}
-                    </td>
-                  </tr>
-                  
-                  {/* Expanded Payment Details */}
-                  {selectedPaymentId === payment.id && (
-                    <tr className="bg-gray-50">
-                      <td colSpan={7} className="px-6 py-4">
-                        <div className="p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                              <h3 className="text-sm font-medium text-gray-500 mb-1">Payment Details</h3>
-                              <div className="space-y-1 text-sm">
-                                <p><span className="text-gray-500">Payment ID:</span> <span className="text-gray-800 font-medium">{payment.id}</span></p>
-                                <p><span className="text-gray-500">Order ID:</span> <span className="text-gray-800 font-medium">{payment.orderId}</span></p>
-                                <p><span className="text-gray-500">Amount:</span> <span className="text-gray-800 font-medium">{formatCurrency(payment.amount)}</span></p>
-                              </div>
-                            </div>
-                            <div>
-                              <h3 className="text-sm font-medium text-gray-500 mb-1">Payment Method</h3>
-                              <div className="space-y-1 text-sm">
-                                <p>
-                                  <span className="text-gray-500">Method:</span> <span className="text-gray-800 font-medium">{payment.method}</span>
-                                </p>
-                                <p>
-                                  <span className="text-gray-500">Status:</span> <span className={`font-medium ${
-                                    payment.status === 'completed' ? 'text-green-600' : 
-                                    payment.status === 'refunded' ? 'text-blue-600' :
-                                    payment.status === 'pending' ? 'text-yellow-600' : 'text-red-600'
-                                  }`}>
-                                    {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-                                  </span>
-                                </p>
-                              </div>
-                            </div>
-                            <div>
-                              <h3 className="text-sm font-medium text-gray-500 mb-1">Customer Information</h3>
-                              <div className="space-y-1 text-sm">
-                                <p><span className="text-gray-500">Name:</span> <span className="text-gray-800 font-medium">{payment.customer}</span></p>
-                                <p><span className="text-gray-500">Date:</span> <span className="text-gray-800 font-medium">{formatDate(payment.date)}</span></p>
-                              </div>
-                            </div>
+            <tbody className="divide-y divide-gray-200">
+              {isLoading && payments.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                    <div className="flex justify-center">
+                      <div className="inline-block w-6 h-6 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                    <p className="mt-2">Loading payments...</p>
+                  </td>
+                </tr>
+              ) : filteredPayments.length > 0 ? (
+                filteredPayments.map((payment) => (
+                  <React.Fragment key={payment._id}>
+                    <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => togglePaymentDetails(payment._id)}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                            <FaFileInvoiceDollar className="text-indigo-600" />
                           </div>
-                          
-                          <div className="mt-4 flex justify-end space-x-3">
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setViewInvoice(payment.id);
-                              }} 
-                              className="px-3 py-1 bg-white border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50"
-                            >
-                              View Invoice
-                            </button>
-                            {payment.status === 'completed' && (
-                              <button className="px-3 py-1 bg-blue-50 border border-blue-200 rounded text-sm text-blue-600 hover:bg-blue-100">
-                                Process Refund
-                              </button>
-                            )}
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900">{payment.order.orderNumber}</div>
+                            <div className="text-xs text-gray-500">ID: {payment._id.substring(0, 8)}</div>
                           </div>
                         </div>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(payment.paidAt)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{formatCurrency(payment.total)}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center text-sm text-gray-500">
+                          {getMethodIcon(payment.paymentMethod)}
+                          {payment.paymentMethod}
+                        </div>
+                        {payment.cardInfo && <div className="text-xs text-gray-400">{payment.cardInfo}</div>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeStyles(payment.paymentStatus)}`}>
+                          <span className="flex items-center">
+                            {getStatusIcon(payment.paymentStatus)}
+                            {payment.paymentStatus}
+                          </span>
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-3">
+                          <button 
+                            className="text-indigo-600 hover:text-indigo-900"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePaymentDetails(payment._id);
+                            }}
+                          >
+                            {expandedPayment === payment._id ? 'Hide Details' : 'View Details'}
+                          </button>
+                        </div>
+                      </td>
                     </tr>
-                  )}
-                </React.Fragment>
-              ))}
-              
-              {filteredPayments.length === 0 && (
+                    
+                    {/* Expanded details row */}
+                    {expandedPayment === payment._id && (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-4 bg-gray-50">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2">Order Details</h4>
+                              <p className="text-sm text-gray-600">Order #: {payment.order.orderNumber}</p>
+                              <p className="text-sm text-gray-600">Items: {payment.order.items?.length || 0}</p>
+                            </div>
+                            
+                            <div>
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2">Payment Information</h4>
+                              <p className="text-sm text-gray-600">Method: {payment.paymentMethod}</p>
+                              <p className="text-sm text-gray-600">Status: {payment.paymentStatus}</p>
+                              {payment.cardInfo && <p className="text-sm text-gray-600">Card Info: {payment.cardInfo}</p>}
+                            </div>
+                            
+                            <div>
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2">Actions</h4>
+                              <div className="flex space-x-2">
+                                {payment.paymentStatus !== 'paid' && (
+                                  <button 
+                                    className="px-3 py-1 bg-green-100 text-green-800 rounded hover:bg-green-200"
+                                    onClick={() => updatePaymentStatus(payment._id, 'paid')}
+                                  >
+                                    Mark as Paid
+                                  </button>
+                                )}
+                                
+                                <button 
+                                  className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded hover:bg-indigo-200"
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    
+                                    // Fetch full order details to get item details
+                                    interface OrderItem {
+                                      name: string;
+                                      price: number;
+                                      quantity: number;
+                                      note?: string;
+                                    }
+                                    let orderItems: OrderItem[] = [];
+                                    try {
+                                      const orderResponse = await fetch(`/api/orders/${payment.order._id}`, {
+                                        method: 'GET',
+                                        credentials: 'include'
+                                      });
+                                      
+                                      if (orderResponse.ok) {
+                                        const orderData = await orderResponse.json();
+                                        orderItems = orderData.items || [];
+                                      }
+                                    } catch (err) {
+                                      console.error("Could not fetch order details:", err);
+                                      // Continue with available data even if order fetch fails
+                                    }
+                                    
+                                    // Create a hidden iframe for printing
+                                    const iframeId = "receipt-print-frame";
+                                    let printFrame = document.getElementById(iframeId) as HTMLIFrameElement;
+                                    
+                                    // Create the iframe if it doesn't exist
+                                    if (!printFrame) {
+                                      printFrame = document.createElement('iframe');
+                                      printFrame.id = iframeId;
+                                      printFrame.style.position = 'fixed';
+                                      printFrame.style.right = '0';
+                                      printFrame.style.bottom = '0';
+                                      printFrame.style.width = '0';
+                                      printFrame.style.height = '0';
+                                      printFrame.style.border = '0';
+                                      document.body.appendChild(printFrame);
+                                    }
+                                    
+                                    // Create the receipt HTML
+                                    const receiptHTML = `
+                                      <html>
+                                        <head>
+                                          <title>Payment Receipt</title>
+                                          <style>
+                                            @media print {
+                                              body { margin: 0; padding: 0; }
+                                              .no-print { display: none; }
+                                            }
+                                            body { 
+                                              font-family: 'Courier New', monospace; 
+                                              padding: 10px; 
+                                              max-width: 300px; 
+                                              margin: 0 auto;
+                                              font-size: 12px;
+                                            }
+                                            .receipt { 
+                                              padding: 10px 0;
+                                            }
+                                            .header { 
+                                              text-align: center; 
+                                              margin-bottom: 10px;
+                                              border-bottom: 1px dashed #000;
+                                              padding-bottom: 10px;
+                                            }
+                                            .header h1 {
+                                              font-size: 18px;
+                                              margin: 0;
+                                              text-transform: uppercase;
+                                            }
+                                            .header h2 {
+                                              font-size: 16px;
+                                              margin: 5px 0;
+                                            }
+                                            .header p {
+                                              margin: 3px 0;
+                                              font-size: 12px;
+                                            }
+                                            .details { 
+                                              margin-bottom: 10px;
+                                            }
+                                            .details p { 
+                                              margin: 5px 0;
+                                              display: flex;
+                                              justify-content: space-between;
+                                            }
+                                            .items {
+                                              width: 100%;
+                                              border-collapse: collapse;
+                                              margin: 10px 0;
+                                            }
+                                            .items th {
+                                              text-align: left;
+                                              border-bottom: 1px solid #000;
+                                              padding: 5px 0;
+                                            }
+                                            .items td {
+                                              padding: 3px 0;
+                                              vertical-align: top;
+                                            }
+                                            .item-qty {
+                                              text-align: center;
+                                              width: 30px;
+                                            }
+                                            .item-price {
+                                              text-align: right;
+                                              width: 60px;
+                                            }
+                                            .totals {
+                                              margin-top: 5px;
+                                              border-top: 1px solid #000;
+                                              padding-top: 5px;
+                                            }
+                                            .totals p {
+                                              display: flex;
+                                              justify-content: space-between;
+                                              margin: 3px 0;
+                                            }
+                                            .grand-total {
+                                              font-weight: bold;
+                                              font-size: 14px;
+                                              border-top: 1px solid #000;
+                                              border-bottom: 1px solid #000;
+                                              padding: 5px 0;
+                                              margin-top: 5px;
+                                            }
+                                            .footer { 
+                                              text-align: center; 
+                                              margin-top: 15px;
+                                              font-size: 11px;
+                                              border-top: 1px dashed #000;
+                                              padding-top: 10px;
+                                            }
+                                            .footer p { 
+                                              margin: 3px 0; 
+                                            }
+                                          </style>
+                                        </head>
+                                        <body>
+                                          <div class="receipt">
+                                            <div class="header">
+                                              <h1>Your Restaurant</h1>
+                                              <p>123 Food Street, Foodville</p>
+                                              <p>Tel: (123) 456-7890</p>
+                                              <p>GSTIN: 12ABCDE3456F7Z8</p>
+                                              <h2>INVOICE</h2>
+                                              <p>Order #: ${payment.order.orderNumber}</p>
+                                              <p>Date: ${formatDate(payment.paidAt || payment.createdAt)}</p>
+                                              <p>Receipt #: ${payment._id.substring(0, 8)}</p>
+                                            </div>
+                                            
+                                            <div class="details">
+                                              <p><span>Payment Method:</span> <span>${payment.paymentMethod}</span></p>
+                                              <p><span>Status:</span> <span>${payment.paymentStatus}</span></p>
+                                              ${payment.cardInfo ? `<p><span>Card Info:</span> <span>${payment.cardInfo}</span></p>` : ''}
+                                            </div>
+                                            
+                                            <table class="items">
+                                              <thead>
+                                                <tr>
+                                                  <th class="item-qty">Qty</th>
+                                                  <th>Item</th>
+                                                  <th class="item-price">Price</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody>
+                                                ${orderItems.length > 0 
+                                                  ? orderItems.map(item => `
+                                                    <tr>
+                                                      <td class="item-qty">${item.quantity}</td>
+                                                      <td>${item.name}</td>
+                                                      <td class="item-price">${formatCurrency(item.price * item.quantity)}</td>
+                                                    </tr>
+                                                    ${item.note ? `<tr><td></td><td colspan="2" style="font-size:10px;font-style:italic;">Note: ${item.note}</td></tr>` : ''}
+                                                  `).join('') 
+                                                  : `<tr><td colspan="3" style="text-align:center;padding:10px;">Items not available</td></tr>`
+                                                }
+                                              </tbody>
+                                            </table>
+                                            
+                                            <div class="totals">
+                                              <p><span>Subtotal:</span> <span>${formatCurrency(payment.subtotal || 0)}</span></p>
+                                              <p><span>Tax (18%):</span> <span>${formatCurrency(payment.tax || 0)}</span></p>
+                                              ${payment.tip && payment.tip > 0 ? `<p><span>Tip:</span> <span>${formatCurrency(payment.tip)}</span></p>` : ''}
+                                              ${payment.discount && payment.discount > 0 ? `<p><span>Discount:</span> <span>-${formatCurrency(payment.discount)}</span></p>` : ''}
+                                              <p class="grand-total"><span>TOTAL:</span> <span>${formatCurrency(payment.total)}</span></p>
+                                            </div>
+                                            
+                                            <div class="footer">
+                                              <p>Thank you for dining with us!</p>
+                                              <p>Please visit again soon</p>
+                                              ${payment.notes ? `<p>Note: ${payment.notes}</p>` : ''}
+                                              <p>www.yourrestaurant.com</p>
+                                            </div>
+                                          </div>
+                                        </body>
+                                      </html>
+                                    `;
+                                    
+                                    // Set the iframe content
+                                    const frameDoc = printFrame.contentWindow?.document;
+                                    if (frameDoc) {
+                                      frameDoc.open();
+                                      frameDoc.write(receiptHTML);
+                                      frameDoc.close();
+                                      
+                                      // Wait for the iframe content to fully load before printing
+                                      setTimeout(() => {
+                                        try {
+                                          printFrame.contentWindow?.focus();
+                                          printFrame.contentWindow?.print();
+                                        } catch (err) {
+                                          console.error('Printing failed:', err);
+                                          toast.error('Failed to print receipt');
+                                        }
+                                      }, 500);
+                                    }
+                                  }}
+                                >
+                                  Print Receipt
+                                </button>
+                              </div>
+                              
+                              {payment.notes && (
+                                <div className="mt-2">
+                                  <h4 className="text-sm font-semibold text-gray-700 mb-1">Notes</h4>
+                                  <p className="text-sm text-gray-600">{payment.notes}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))
+              ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                    No payments found matching your filters
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                    {error ? (
+                      <>
+                        <p className="text-red-500 font-medium">{error}</p>
+                        <button 
+                          className="mt-2 px-4 py-1 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200"
+                          onClick={fetchPayments}
+                        >
+                          Try Again
+                        </button>
+                      </>
+                    ) : (
+                      'No payment records found. Try adjusting your filters.'
+                    )}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </div>
-      
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-gray-700">
-          Showing <span className="font-semibold">1</span> to <span className="font-semibold">{filteredPayments.length}</span> of <span className="font-semibold">{payments.length}</span> payments
-        </div>
-        <div className="flex items-center space-x-2">
-          <button className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50" disabled>
-            Previous
-          </button>
-          <button className="px-3 py-1 bg-indigo-50 border border-indigo-200 rounded-md text-sm text-indigo-600 font-medium">
-            1
-          </button>
-          <button className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-50">
-            Next
-          </button>
-        </div>
-      </div>
-      
-      {/* Invoice Modal */}
-      {viewInvoice && currentInvoicePayment && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-3xl max-h-[90vh] overflow-auto">
-            <div className="flex justify-between items-center border-b border-gray-200 px-6 py-4">
-              <h3 className="text-lg font-bold text-gray-800">Invoice #{currentInvoicePayment.id}</h3>
+        
+        {/* Pagination */}
+        {filteredPayments.length > 0 && pagination.pages > 1 && (
+          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+            <div className="text-sm text-gray-700">
+              Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of <span className="font-medium">{pagination.total}</span> payments
+            </div>
+            <div className="flex space-x-2">
               <button 
-                onClick={() => setViewInvoice(null)}
-                className="text-gray-500 hover:text-gray-700"
+                className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                disabled={pagination.page === 1}
+                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
               >
-                <FaTimes />
+                Previous
+              </button>
+              
+              <button 
+                className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                disabled={pagination.page === pagination.pages}
+                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+              >
+                Next
               </button>
             </div>
-            
-            <div className="p-6">
-              {/* Restaurant Info */}
-              <div className="flex justify-between mb-8">
-                <div>
-                  <div className="flex items-center">
-                    <FaBuilding className="text-indigo-600 mr-2" />
-                    <h2 className="text-xl font-bold text-gray-800">Spice Garden Restaurant</h2>
-                  </div>
-                  <p className="text-gray-600 mt-1">123 Food Street, Flavor District</p>
-                  <p className="text-gray-600">Mumbai, Maharashtra 400001</p>
-                  <p className="text-gray-600">GSTIN: 27AABCS1234Z1Z5</p>
-                </div>
-                
-                <div className="text-right">
-                  <h4 className="text-lg font-bold text-gray-800">Invoice</h4>
-                  <p className="text-gray-600">Date: {formatDate(currentInvoicePayment.date)}</p>
-                  <p className="text-gray-600">Invoice #: {currentInvoicePayment.id}</p>
-                  <p className="text-gray-600">Order #: {currentInvoicePayment.orderId}</p>
-                </div>
-              </div>
-              
-              {/* Customer Info */}
-              <div className="mb-8 bg-gray-50 p-4 rounded">
-                <h4 className="font-medium text-gray-800 mb-2">Customer Information</h4>
-                <p><span className="text-gray-600">Name:</span> <span className="text-gray-800 font-medium">{currentInvoicePayment.customer}</span></p>
-                <p><span className="text-gray-600">Phone:</span> <span className="text-gray-800 font-medium">+91 98765 43210</span></p>
-                <p><span className="text-gray-600">Email:</span> <span className="text-gray-800 font-medium">{currentInvoicePayment.customer.split(' ')[0].toLowerCase()}@email.com</span></p>
-              </div>
-              
-              {/* Order Items (Sample) */}
-              <div className="mb-8">
-                <h4 className="font-medium text-gray-800 mb-3">Order Details</h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="py-3 px-4 text-sm font-medium text-gray-600 w-12">#</th>
-                        <th className="py-3 px-4 text-sm font-medium text-gray-600">Item</th>
-                        <th className="py-3 px-4 text-sm font-medium text-gray-600 text-right">Qty</th>
-                        <th className="py-3 px-4 text-sm font-medium text-gray-600 text-right">Price</th>
-                        <th className="py-3 px-4 text-sm font-medium text-gray-600 text-right">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {/* Generate random items based on payment amount */}
-                      {[...Array(Math.floor(Math.random() * 4) + 2)].map((_, index) => {
-                        const items = [
-                          { name: 'Butter Chicken', price: 320 },
-                          { name: 'Paneer Tikka', price: 260 },
-                          { name: 'Veg Biryani', price: 220 },
-                          { name: 'Tandoori Roti', price: 40 },
-                          { name: 'Dal Makhani', price: 180 },
-                          { name: 'Chicken Biryani', price: 320 },
-                          { name: 'Masala Dosa', price: 160 },
-                          { name: 'Veg Fried Rice', price: 180 }
-                        ];
-                        const item = items[Math.floor(Math.random() * items.length)];
-                        const qty = Math.floor(Math.random() * 3) + 1;
-                        return (
-                          <tr key={index} className="border-b border-gray-100">
-                            <td className="py-3 px-4 text-sm text-gray-800">{index + 1}</td>
-                            <td className="py-3 px-4 text-sm text-gray-800">{item.name}</td>
-                            <td className="py-3 px-4 text-sm text-gray-800 text-right">{qty}</td>
-                            <td className="py-3 px-4 text-sm text-gray-800 text-right">{formatCurrency(item.price)}</td>
-                            <td className="py-3 px-4 text-sm text-gray-800 font-medium text-right">{formatCurrency(item.price * qty)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t border-gray-200">
-                        <td colSpan={4} className="py-3 px-4 text-sm text-gray-600 font-medium text-right">Subtotal</td>
-                        <td className="py-3 px-4 text-sm text-gray-800 font-medium text-right">
-                          {formatCurrency(currentInvoicePayment.amount * 0.95)}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td colSpan={4} className="py-3 px-4 text-sm text-gray-600 font-medium text-right">CGST (2.5%)</td>
-                        <td className="py-3 px-4 text-sm text-gray-800 font-medium text-right">
-                          {formatCurrency(currentInvoicePayment.amount * 0.025)}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td colSpan={4} className="py-3 px-4 text-sm text-gray-600 font-medium text-right">SGST (2.5%)</td>
-                        <td className="py-3 px-4 text-sm text-gray-800 font-medium text-right">
-                          {formatCurrency(currentInvoicePayment.amount * 0.025)}
-                        </td>
-                      </tr>
-                      <tr className="bg-gray-50">
-                        <td colSpan={4} className="py-3 px-4 text-sm text-gray-800 font-bold text-right">Total</td>
-                        <td className="py-3 px-4 text-sm text-gray-800 font-bold text-right">
-                          {formatCurrency(currentInvoicePayment.amount)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-              
-              {/* Payment Info */}
-              <div className="mb-8 flex flex-col sm:flex-row sm:justify-between gap-4">
-                <div className="bg-gray-50 p-4 rounded sm:w-1/2">
-                  <h4 className="font-medium text-gray-800 mb-2">Payment Information</h4>
-                  <p><span className="text-gray-600">Method:</span> <span className="text-gray-800 font-medium">{currentInvoicePayment.method}</span></p>
-                  <p><span className="text-gray-600">Status:</span> <span className={`font-medium ${
-                    currentInvoicePayment.status === 'completed' ? 'text-green-600' : 
-                    currentInvoicePayment.status === 'refunded' ? 'text-blue-600' :
-                    currentInvoicePayment.status === 'pending' ? 'text-yellow-600' : 'text-red-600'
-                  }`}>
-                    {currentInvoicePayment.status.charAt(0).toUpperCase() + currentInvoicePayment.status.slice(1)}
-                  </span></p>
-                  <p><span className="text-gray-600">Date:</span> <span className="text-gray-800 font-medium">{formatDate(currentInvoicePayment.date)}</span></p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded sm:w-1/2">
-                  <h4 className="font-medium text-gray-800 mb-2">Thank You!</h4>
-                  <p className="text-gray-600 mb-2">We appreciate your business and look forward to serving you again.</p>
-                  <p className="text-sm text-gray-500">For questions or concerns about this invoice, please contact our support team.</p>
-                </div>
-              </div>
-              
-              {/* Footer */}
-              <div className="border-t border-gray-200 pt-4 mt-6 flex justify-between items-center">
-                <div className="text-sm text-gray-500">
-                  This is a computer generated invoice. No signature required.
-                </div>
-                <div className="flex space-x-3">
-                  <button className="flex items-center px-3 py-1.5 bg-white border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50">
-                    <FaPrint className="mr-2" /> Print
-                  </button>
-                  <button className="flex items-center px-3 py-1.5 bg-indigo-600 rounded text-sm text-white hover:bg-indigo-700">
-                    <FaDownload className="mr-2" /> Download
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

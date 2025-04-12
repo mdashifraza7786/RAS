@@ -6,6 +6,11 @@ export interface IUser extends Document {
   email: string;
   password: string;
   role: 'manager' | 'waiter' | 'chef';
+  phone?: string;
+  address?: string;
+  joiningDate?: Date;
+  salary?: number;
+  photo?: string;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -38,10 +43,30 @@ const userSchema = new Schema<IUser>(
       type: String,
       enum: ['manager', 'waiter', 'chef'],
       default: 'waiter'
+    },
+    phone: {
+      type: String,
+      trim: true
+    },
+    address: {
+      type: String,
+      trim: true
+    },
+    joiningDate: {
+      type: Date
+    },
+    salary: {
+      type: Number
+    },
+    photo: {
+      type: String
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    // This will ensure the collection has the right schema
+    strict: true,
+    strictQuery: true
   }
 );
 
@@ -64,7 +89,12 @@ userSchema.methods.comparePassword = async function(candidatePassword: string): 
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Check if model already exists to prevent overwrite during hot reload in development
+// Delete and recreate model for dev purposes - ONLY FOR DEVELOPMENT
+if (process.env.NODE_ENV === 'development' && mongoose.models.User) {
+  delete mongoose.models.User;
+}
+
+// Create the model with the updated schema
 const User = mongoose.models.User || mongoose.model<IUser>('User', userSchema);
 
 export default User; 

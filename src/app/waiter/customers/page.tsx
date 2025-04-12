@@ -11,8 +11,11 @@ import {
   FaPhone,
   FaPlus,
   FaRegStar,
-  FaStar
+  FaStar,
+  FaSyncAlt
 } from 'react-icons/fa';
+import Link from 'next/link';
+import { useCustomers, CustomerFilters } from '@/hooks/useCustomers';
 
 interface CustomerNote {
   id: number;
@@ -42,6 +45,7 @@ interface Customer {
   notes?: CustomerNote[];
   visitHistory?: CustomerVisit[];
   vip: boolean;
+  lastVisit: string;
 }
 
 // Sample data
@@ -65,7 +69,8 @@ const initialCustomers: Customer[] = [
       { id: 101, date: '2023-09-18', tableId: 5, tableName: 'Table 5', totalSpent: 87.50, guests: 2 },
       { id: 102, date: '2023-08-30', tableId: 3, tableName: 'Table 3', totalSpent: 65.20, guests: 2 },
       { id: 103, date: '2023-08-12', tableId: 8, tableName: 'Table 8', totalSpent: 112.40, guests: 4 }
-    ]
+    ],
+    lastVisit: '2023-09-18'
   },
   {
     id: 2,
@@ -84,7 +89,8 @@ const initialCustomers: Customer[] = [
     visitHistory: [
       { id: 104, date: '2023-09-05', tableId: 2, tableName: 'Table 2', totalSpent: 45.60, guests: 1 },
       { id: 105, date: '2023-08-19', tableId: 6, tableName: 'Table 6', totalSpent: 78.30, guests: 2 }
-    ]
+    ],
+    lastVisit: '2023-09-05'
   },
   {
     id: 3,
@@ -99,7 +105,8 @@ const initialCustomers: Customer[] = [
     visitHistory: [
       { id: 106, date: '2023-09-10', tableId: 4, tableName: 'Table 4', totalSpent: 56.70, guests: 2 },
       { id: 107, date: '2023-08-28', tableId: 7, tableName: 'Table 7', totalSpent: 42.30, guests: 1 }
-    ]
+    ],
+    lastVisit: '2023-09-10'
   },
   {
     id: 4,
@@ -120,394 +127,289 @@ const initialCustomers: Customer[] = [
       { id: 108, date: '2023-09-15', tableId: 9, tableName: 'Table 9', totalSpent: 92.80, guests: 2 },
       { id: 109, date: '2023-09-01', tableId: 5, tableName: 'Table 5', totalSpent: 115.40, guests: 4 },
       { id: 110, date: '2023-08-20', tableId: 3, tableName: 'Table 3', totalSpent: 67.30, guests: 2 }
-    ]
+    ],
+    lastVisit: '2023-09-15'
   }
 ];
 
 export default function WaiterCustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewCustomerId, setViewCustomerId] = useState<number | null>(null);
-  const [isAddingNote, setIsAddingNote] = useState(false);
-  const [newNote, setNewNote] = useState('');
-
-  const handleAddNote = () => {
-    if (!viewCustomerId || !newNote.trim()) return;
-    
-    setCustomers(customers.map(customer => 
-      customer.id === viewCustomerId 
-        ? { 
-            ...customer, 
-            notes: [
-              ...(customer.notes || []),
-              {
-                id: Date.now(),
-                text: newNote.trim(),
-                date: new Date().toISOString().split('T')[0]
-              }
-            ]
-          } 
-        : customer
-    ));
-    
-    setIsAddingNote(false);
-    setNewNote('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    preferences: '',
+    notes: ''
+  });
+  
+  // Use customers hook with search filter
+  const { 
+    customers, 
+    loading, 
+    error, 
+    createCustomer,
+    fetchCustomers
+  } = useCustomers({ name: searchTerm });
+  
+  // Handler for search
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchCustomers({ name: searchTerm });
   };
-
-  const handleToggleVip = (customerId: number) => {
-    setCustomers(customers.map(customer => 
-      customer.id === customerId 
-        ? { 
-            ...customer, 
-            vip: !customer.vip
-          } 
-        : customer
-    ));
+  
+  // Handler for adding a customer
+  const handleAddCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newCustomer.name || !newCustomer.phone) return;
+    
+    try {
+      await createCustomer({
+        ...newCustomer,
+        visits: 1,
+        totalSpent: 0,
+        lastVisit: new Date().toISOString()
+      });
+      
+      // Reset form and close modal
+      setNewCustomer({
+        name: '',
+        phone: '',
+        email: '',
+        preferences: '',
+        notes: ''
+      });
+      setShowAddCustomer(false);
+    } catch (error) {
+      console.error('Failed to add customer:', error);
+    }
   };
-
-  const searchedCustomers = searchQuery 
-    ? customers.filter(customer => 
-        customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (customer.email && customer.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (customer.phone && customer.phone.includes(searchQuery))
-      )
-    : customers;
-
-  const viewingCustomer = viewCustomerId !== null 
-    ? customers.find(customer => customer.id === viewCustomerId) 
-    : null;
-
+  
+  // Handler for manual refresh
+  const handleRefresh = () => {
+    fetchCustomers({ name: searchTerm });
+  };
+  
   return (
-    <div className="p-8">
+    <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Customer Management</h1>
-          <p className="text-gray-600">Track and manage customer information</p>
+        <h1 className="text-2xl font-bold">Customers</h1>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleRefresh}
+            disabled={loading}
+            className="flex items-center px-4 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+          >
+            <FaSyncAlt className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          <button
+            onClick={() => setShowAddCustomer(true)}
+            className="flex items-center px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700"
+          >
+            <FaPlus className="mr-2" />
+            Add Customer
+          </button>
         </div>
-        <button 
-          className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors"
-        >
-          <FaUserPlus className="mr-2" />
-          Add New Customer
-        </button>
       </div>
-
-      {/* Search */}
+      
+      {/* Search box */}
       <div className="mb-6">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FaSearch className="text-gray-400" />
+        <form onSubmit={handleSearch} className="flex w-full md:w-96">
+          <div className="relative flex-grow">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <FaSearch className="text-gray-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search customers..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
           </div>
-          <input
-            type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            placeholder="Search customers by name, email or phone..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700"
+          >
+            Search
+          </button>
+        </form>
       </div>
-
+      
+      {/* Error message */}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <p>Failed to load customers. Please try again.</p>
+        </div>
+      )}
+      
+      {/* Loading state */}
+      {loading && (
+        <div className="flex justify-center items-center h-40">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      )}
+      
       {/* Customers list */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200">
-          {searchedCustomers.length > 0 ? (
-            searchedCustomers.map((customer) => (
-              <li key={customer.id}>
-                <div className="px-4 py-4 sm:px-6 hover:bg-gray-50 cursor-pointer" onClick={() => setViewCustomerId(customer.id)}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                        <FaUser className="h-5 w-5 text-indigo-600" />
-                      </div>
-                      <div className="ml-4">
-                        <div className="flex items-center">
-                          <div className="font-medium text-indigo-600">
-                            {customer.name}
-                          </div>
-                          {customer.vip && (
-                            <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
-                              VIP
-                            </span>
-                          )}
+      {!loading && !error && (
+        <>
+          {customers.length === 0 ? (
+            <div className="bg-white rounded-lg shadow p-6 text-center">
+              <p className="text-gray-500">No customers found. Try a different search term or add a new customer.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {customers.map(customer => (
+                <Link 
+                  key={customer._id} 
+                  href={`/waiter/customers/${customer._id}`}
+                  className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="bg-blue-100 text-blue-600 p-3 rounded-full">
+                      <FaUser />
+                    </div>
+                    <div className="flex-grow">
+                      <h3 className="font-bold text-lg">{customer.name}</h3>
+                      
+                      <div className="mt-2 space-y-1">
+                        <div className="flex items-center text-sm text-gray-600">
+                          <FaPhone className="mr-2 text-gray-400" />
+                          {customer.phone}
                         </div>
-                        <div className="text-sm text-gray-500 mt-1">
-                          {customer.email && (
-                            <span className="flex items-center">
-                              <FaEnvelope className="mr-1 h-3 w-3" />
-                              {customer.email}
-                            </span>
-                          )}
-                        </div>
-                        {customer.phone && (
-                          <div className="text-sm text-gray-500 mt-1">
-                            <span className="flex items-center">
-                              <FaPhone className="mr-1 h-3 w-3" />
-                              {customer.phone}
-                            </span>
+                        
+                        {customer.email && (
+                          <div className="flex items-center text-sm text-gray-600">
+                            <FaEnvelope className="mr-2 text-gray-400" />
+                            {customer.email}
                           </div>
                         )}
+                        
+                        <div className="flex items-center text-sm text-gray-600">
+                          <FaCalendarAlt className="mr-2 text-gray-400" />
+                          Last visit: {new Date(customer.lastVisit).toLocaleDateString()}
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <div className="text-sm font-medium text-gray-900">
-                        {customer.visits} {customer.visits === 1 ? 'visit' : 'visits'}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        ₹{customer.totalSpent.toFixed(2)} spent
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        <span className="flex items-center">
-                          <FaCalendarAlt className="mr-1 h-3 w-3" />
-                          Customer since {new Date(customer.joinDate).toLocaleDateString()}
+                      
+                      <div className="mt-3 flex items-center justify-between">
+                        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                          {customer.visits} {customer.visits === 1 ? 'visit' : 'visits'}
+                        </span>
+                        <span className="text-sm font-medium">
+                          ₹{customer.totalSpent.toLocaleString()}
                         </span>
                       </div>
                     </div>
                   </div>
-                </div>
-              </li>
-            ))
-          ) : (
-            <li className="px-4 py-8 text-center text-gray-500">
-              No customers match your search criteria
-            </li>
+                </Link>
+              ))}
+            </div>
           )}
-        </ul>
-      </div>
-
-      {/* Customer details modal */}
-      {viewingCustomer && (
+        </>
+      )}
+      
+      {/* Add customer modal */}
+      {showAddCustomer && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg overflow-hidden max-w-2xl w-full max-h-[90vh] flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <div className="flex items-center">
-                <div className="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                  <FaUser className="h-5 w-5 text-indigo-600" />
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-xl font-bold text-gray-800">{viewingCustomer.name}</h3>
-                  <p className="text-sm text-gray-600">Customer #{viewingCustomer.id}</p>
-                </div>
-              </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleToggleVip(viewingCustomer.id)}
-                  className={`p-2 rounded-full ${
-                    viewingCustomer.vip 
-                      ? 'bg-yellow-100 text-yellow-600' 
-                      : 'bg-gray-100 text-gray-500'
-                  }`}
-                  title={viewingCustomer.vip ? "Remove VIP status" : "Mark as VIP"}
-                >
-                  {viewingCustomer.vip ? <FaStar className="h-5 w-5" /> : <FaRegStar className="h-5 w-5" />}
-                </button>
-                <button
-                  onClick={() => {/* Edit customer logic */}}
-                  className="p-2 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
-                  title="Edit customer"
-                >
-                  <FaEdit className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-                <div>
-                  <h4 className="font-medium text-gray-700 mb-3">Contact Information</h4>
-                  <div className="space-y-2">
-                    {viewingCustomer.email && (
-                      <div className="flex items-center">
-                        <FaEnvelope className="h-4 w-4 text-gray-400 mr-2" />
-                        <span>{viewingCustomer.email}</span>
-                      </div>
-                    )}
-                    {viewingCustomer.phone && (
-                      <div className="flex items-center">
-                        <FaPhone className="h-4 w-4 text-gray-400 mr-2" />
-                        <span>{viewingCustomer.phone}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center">
-                      <FaCalendarAlt className="h-4 w-4 text-gray-400 mr-2" />
-                      <span>Customer since {new Date(viewingCustomer.joinDate).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h4 className="font-medium text-gray-700 mb-3">Customer Summary</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total visits:</span>
-                      <span className="font-medium">{viewingCustomer.visits}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total spent:</span>
-                      <span className="font-medium">₹{viewingCustomer.totalSpent.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Average per visit:</span>
-                      <span className="font-medium">
-                        ₹{(viewingCustomer.totalSpent / viewingCustomer.visits).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="md:col-span-2">
-                  <h4 className="font-medium text-gray-700 mb-3">Preferences & Allergies</h4>
-                  <div className="space-y-3">
-                    {viewingCustomer.favoriteItems && viewingCustomer.favoriteItems.length > 0 && (
-                      <div>
-                        <span className="text-gray-600 block mb-1">Favorite items:</span>
-                        <div className="flex flex-wrap gap-2">
-                          {viewingCustomer.favoriteItems.map((item, index) => (
-                            <span 
-                              key={index} 
-                              className="px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-700"
-                            >
-                              {item}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {viewingCustomer.allergies && viewingCustomer.allergies.length > 0 && (
-                      <div>
-                        <span className="text-gray-600 block mb-1">Allergies:</span>
-                        <div className="flex flex-wrap gap-2">
-                          {viewingCustomer.allergies.map((allergy, index) => (
-                            <span 
-                              key={index} 
-                              className="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700"
-                            >
-                              {allergy}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="md:col-span-2">
-                  <div className="flex justify-between items-center mb-3">
-                    <h4 className="font-medium text-gray-700">Notes</h4>
-                    {!isAddingNote && (
-                      <button
-                        onClick={() => setIsAddingNote(true)}
-                        className="text-sm flex items-center text-indigo-600 hover:text-indigo-800"
-                      >
-                        <FaPlus className="h-3 w-3 mr-1" />
-                        Add Note
-                      </button>
-                    )}
-                  </div>
-                  
-                  {isAddingNote && (
-                    <div className="mb-3 border border-gray-300 rounded-lg p-3">
-                      <textarea
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        rows={3}
-                        placeholder="Add a note about this customer..."
-                        value={newNote}
-                        onChange={(e) => setNewNote(e.target.value)}
-                      ></textarea>
-                      <div className="flex justify-end mt-2 space-x-2">
-                        <button
-                          onClick={() => {
-                            setIsAddingNote(false);
-                            setNewNote('');
-                          }}
-                          className="px-3 py-1 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleAddNote}
-                          className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                          disabled={!newNote.trim()}
-                        >
-                          Save Note
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="space-y-3">
-                    {viewingCustomer.notes && viewingCustomer.notes.length > 0 ? (
-                      viewingCustomer.notes.map((note) => (
-                        <div key={note.id} className="border border-gray-200 rounded-lg p-3">
-                          <div className="text-sm text-gray-800">{note.text}</div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {new Date(note.date).toLocaleDateString()}
-                          </div>
-                        </div>
-                      ))
-                    ) : !isAddingNote && (
-                      <div className="text-sm text-gray-500 italic">No notes yet</div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="md:col-span-2">
-                  <h4 className="font-medium text-gray-700 mb-3">Recent Visits</h4>
-                  {viewingCustomer.visitHistory && viewingCustomer.visitHistory.length > 0 ? (
-                    <div className="border border-gray-200 rounded-lg overflow-hidden">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Date
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Table
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Guests
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Total
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {viewingCustomer.visitHistory.map((visit) => (
-                            <tr key={visit.id}>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                                {new Date(visit.date).toLocaleDateString()}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                                {visit.tableName}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                                {visit.guests}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                                ₹{visit.totalSpent.toFixed(2)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-500 italic">No visit history available</div>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
-              <button
-                onClick={() => setViewCustomerId(null)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h2 className="text-xl font-bold">Add New Customer</h2>
+              <button 
+                onClick={() => setShowAddCustomer(false)}
+                className="text-gray-400 hover:text-gray-600"
               >
-                Close
+                ×
               </button>
             </div>
+            
+            <form onSubmit={handleAddCustomer} className="p-4">
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="name">
+                  Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  required
+                  value={newCustomer.name}
+                  onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="phone">
+                  Phone <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="phone"
+                  type="tel"
+                  required
+                  value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="email">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="preferences">
+                  Preferences
+                </label>
+                <input
+                  id="preferences"
+                  type="text"
+                  value={newCustomer.preferences}
+                  onChange={(e) => setNewCustomer({...newCustomer, preferences: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Preferred dishes, seating, etc."
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="notes">
+                  Notes
+                </label>
+                <textarea
+                  id="notes"
+                  value={newCustomer.notes}
+                  onChange={(e) => setNewCustomer({...newCustomer, notes: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="Additional notes about the customer"
+                ></textarea>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowAddCustomer(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Add Customer
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

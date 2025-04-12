@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   FaCalendarAlt,
   FaDownload,
@@ -20,7 +20,10 @@ import {
   FaStar,
   FaUtensils,
   FaPercentage,
-  FaAward
+  FaAward,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaCircle
 } from 'react-icons/fa';
 import {
   Chart as ChartJS,
@@ -49,8 +52,30 @@ ChartJS.register(
   Legend
 );
 
-// Report Types
-type ReportType = 'sales' | 'inventory' | 'customers' | 'staff' | 'menu';
+// Define missing type interfaces
+interface TopSellingItem {
+  name: string;
+  quantity: number;
+  revenue: number;
+}
+
+interface OrderType {
+  type?: string;
+  status?: string;
+  amount: number;
+  percentage: number;
+  count: number;
+}
+
+interface PaymentMethod {
+  method: string;
+  amount: number;
+  percentage: number;
+  count: number;
+}
+
+// Report type definition
+type ReportType = 'sales' | 'inventory' | 'staff' | 'menu' | 'customers';
 
 // Report Period Options
 const periodOptions = [
@@ -240,14 +265,23 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-// Format date string to a readable format
+// Format date string to a readable format with consistent server/client rendering
 const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-IN', { 
-    day: 'numeric', 
-    month: 'short', 
-    year: 'numeric'
-  });
+  if (!dateString) {
+    return 'N/A';
+  }
+  
+  try {
+    const date = new Date(dateString);
+    // Use a fixed format that won't change between server and client
+    const day = date.getDate();
+    const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.getMonth()];
+    const year = date.getFullYear();
+    
+    return `${day} ${month} ${year}`;
+  } catch (e) {
+    return 'Invalid date';
+  }
 };
 
 interface StatCardProps {
@@ -284,25 +318,224 @@ const StatCard = ({ title, value, icon, change, changeType = 'neutral' }: StatCa
   );
 };
 
+// Fix type errors for the getStatusBadgeStyles and getStatusIcon functions
+const getStatusBadgeStyles = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'completed':
+      return 'bg-green-100 text-green-800';
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'cancelled':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};
+
+const getStatusIcon = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'completed':
+      return <FaCheckCircle className="text-green-500" />;
+    case 'pending':
+      return <FaClock className="text-yellow-500" />;
+    case 'cancelled':
+      return <FaTimesCircle className="text-red-500" />;
+    default:
+      return <FaCircle className="text-gray-500" />;
+  }
+};
+
 export default function ReportsPage() {
   const [activeReport, setActiveReport] = useState<ReportType>('sales');
   const [period, setPeriod] = useState('month');
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
   const [showCustomDateRange, setShowCustomDateRange] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Report data state
+  const [reportData, setReportData] = useState<any>(null);
 
+  // Use a client-side only useState to track if we're on the client
+  const [isClient, setIsClient] = useState(false);
+  
+  // Set isClient to true on component mount (client-side only)
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
   // Handle period change and show custom date range if needed
   const handlePeriodChange = (newPeriod: string) => {
     setPeriod(newPeriod);
     setShowCustomDateRange(newPeriod === 'custom');
   };
-
-  // Total sales derived from the sample data
-  const totalSales = salesReportData.revenueByDay.reduce((sum, day) => sum + day.revenue, 0);
-  const averageOrderValue = Math.round(totalSales / salesReportData.revenueByDay.length / 15); // Assuming avg 15 orders per day
-  const totalOrders = salesReportData.revenueByDay.length * 15; // Approximation for sample data
   
+  // Fetch report data on report type or period change
+  useEffect(() => {
+    fetchReportData();
+  }, [activeReport, period]);
+  
+  // Fetch report data from API
+  const fetchReportData = async () => {
+    // Skip fetch for custom date range until applied
+    if (period === 'custom' && (!customDateRange.start || !customDateRange.end)) {
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Build query parameters
+      const queryParams = new URLSearchParams({
+        type: activeReport,
+        period
+      });
+      
+      // Add custom date range if applicable
+      if (period === 'custom') {
+        queryParams.append('startDate', customDateRange.start);
+        queryParams.append('endDate', customDateRange.end);
+      }
+      
+      // Fetch data from API
+      const response = await fetch(`/api/manager/reports?${queryParams.toString()}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch report data');
+      }
+      
+      const data = await response.json();
+      console.log('API data received:', data);
+      setReportData(data);
+    } catch (err: any) {
+      console.error('Error fetching report data:', err);
+      setError(err.message || 'An error occurred while fetching report data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Apply custom date range and fetch data
+  const applyCustomDateRange = () => {
+    if (!customDateRange.start || !customDateRange.end) {
+      alert('Please select both start and end dates');
+      return;
+    }
+    
+    fetchReportData();
+  };
+  
+  // Helper function to get data with fallback to sample data
+  const getReportData = () => {
+    if (!reportData || !reportData.data) {
+      return null;
+    }
+    return reportData.data;
+  };
+  
+  // Get the data based on current report type
+  const reportDataForType = getReportData();
+  
+  // Sales metrics with API data or fallback to sample data - with fallbacks for empty arrays
+  const salesData = activeReport === 'sales' && reportDataForType 
+    ? reportDataForType as any
+    : salesReportData;
+  
+  const inventoryData = activeReport === 'inventory' && reportDataForType 
+    ? reportDataForType as any
+    : inventoryReportData;
+    
+  const staffData = activeReport === 'staff' && reportDataForType 
+    ? reportDataForType as any
+    : staffReportData;
+    
+  const menuData = activeReport === 'menu' && reportDataForType 
+    ? reportDataForType as any
+    : menuReportData;
+    
+  const customersData = activeReport === 'customers' && reportDataForType
+    ? reportDataForType
+    : { topCustomers, totalCustomers: topCustomers.length, newCustomers: 0, repeatCustomers: 0 };
+    
+  // Ensure all potential array data has fallbacks
+  const safeRevenueByDay = Array.isArray(salesData?.revenueByDay) ? salesData.revenueByDay : [];
+  const safeTopSellingItems = Array.isArray(salesData?.topSellingItems) ? salesData.topSellingItems : [];
+  const safeOrderTypes = Array.isArray(salesData?.orderTypes) ? salesData.orderTypes : [];
+  const safePaymentMethods = Array.isArray(salesData?.paymentMethods) ? salesData.paymentMethods : [];
+  
+  const safeStockCategories = Array.isArray(inventoryData?.stockCategories) ? inventoryData.stockCategories : [];
+  const safeStockMovement = Array.isArray(inventoryData?.stockMovement) ? inventoryData.stockMovement : [];
+  const safeLowStockItems = Array.isArray(inventoryData?.lowStockItems) ? inventoryData.lowStockItems : [];
+  const safeExpiryWarnings = Array.isArray(inventoryData?.expiryWarnings) ? inventoryData.expiryWarnings : [];
+  
+  const safeStaffDistribution = Array.isArray(staffData?.staffDistribution) ? staffData.staffDistribution : [];
+  const safeWorkHours = Array.isArray(staffData?.workHours) ? staffData.workHours : [];
+  const safeStaffingCosts = Array.isArray(staffData?.staffingCosts) ? staffData.staffingCosts : [];
+  const safeTopPerformers = Array.isArray(staffData?.topPerformers) ? staffData.topPerformers : [];
+  
+  const safeCategoryPerformance = Array.isArray(menuData?.categoryPerformance) ? menuData.categoryPerformance : [];
+  const safeMenuItemProfitability = Array.isArray(menuData?.menuItemProfitability) ? menuData.menuItemProfitability : [];
+  const safeItemPopularity = Array.isArray(menuData?.itemPopularity) ? menuData.itemPopularity : [];
+  const safeRevenueByTimeOfDay = Array.isArray(menuData?.revenueByTimeOfDay) ? menuData.revenueByTimeOfDay : [];
+  
+  const safeTopCustomers = Array.isArray(customersData?.topCustomers) ? customersData.topCustomers : [];
+  
+  // Sales summary metrics
+  const totalSales = salesData.totalRevenue || (safeRevenueByDay.reduce((sum: number, day: any) => sum + day.revenue, 0) || 0);
+  const totalOrders = salesData.totalOrders || (safeOrderTypes.length * 15 || 0);
+  const averageOrderValue = salesData.averageOrderValue || Math.round(totalSales / (totalOrders || 1));
+  const tableTurnoverRate = salesData.tableTurnoverRate || 4.2;
+  
+  // Chart data for sales
+  const salesChartData = {
+    labels: safeRevenueByDay.map((day: any) => formatDate(day.date)) || 
+            salesReportData.revenueByDay.map(day => formatDate(day.date)),
+    datasets: [
+      {
+        label: 'Revenue',
+        data: safeRevenueByDay.map((day: any) => day.revenue) || 
+              salesReportData.revenueByDay.map(day => day.revenue),
+        borderColor: 'rgb(79, 70, 229)',
+        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+        fill: true,
+        tension: 0.4
+      }
+    ]
+  };
+  
+  // Render loading state
+  if (isLoading) {
+    return (
+      <div className="p-8 flex justify-center items-center h-screen">
+        <div className="text-center">
+          <div className="inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-600">Loading report data...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Only render charts and data on client side to avoid hydration mismatch
+  if (!isClient) {
+    return (
+      <div className="p-8 flex justify-center items-center h-screen">
+        <div className="text-center">
+          <div className="inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-8">
+    <div className="p-8 flex-1 overflow-auto">
       {/* Page Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
@@ -310,11 +543,26 @@ export default function ReportsPage() {
           <p className="text-gray-600">View insights and performance metrics</p>
         </div>
         <div className="flex items-center space-x-3">
-          <button className="flex items-center bg-white border border-gray-300 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50">
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center bg-white border border-gray-300 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50"
+          >
             <FaPrint className="mr-2" />
             <span>Print</span>
           </button>
-          <button className="flex items-center bg-indigo-600 px-4 py-2 text-white rounded-lg hover:bg-indigo-700">
+          <button 
+            onClick={() => {
+              const fileName = `${activeReport}-report-${period}.json`;
+              const dataStr = JSON.stringify(reportData?.data || {});
+              const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+              
+              const linkElement = document.createElement('a');
+              linkElement.setAttribute('href', dataUri);
+              linkElement.setAttribute('download', fileName);
+              linkElement.click();
+            }}
+            className="flex items-center bg-indigo-600 px-4 py-2 text-white rounded-lg hover:bg-indigo-700"
+          >
             <FaFileDownload className="mr-2" />
             <span>Export</span>
           </button>
@@ -365,7 +613,7 @@ export default function ReportsPage() {
             </div>
             
             <button 
-              onClick={() => console.log('Refresh report data')}
+              onClick={() => fetchReportData()}
               className="flex items-center px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 text-gray-700"
             >
               <FaSyncAlt className="mr-2" />
@@ -400,7 +648,7 @@ export default function ReportsPage() {
             <div className="flex items-end">
               <button 
                 className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-                onClick={() => console.log('Apply custom date range')}
+                onClick={applyCustomDateRange}
               >
                 Apply
               </button>
@@ -451,25 +699,7 @@ export default function ReportsPage() {
                 <h2 className="text-lg font-semibold text-gray-800 mb-4">Daily Revenue</h2>
                 <div className="h-64">
                   <Line 
-                    data={{
-                      labels: salesReportData.revenueByDay.map(day => {
-                        const date = new Date(day.date);
-                        return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-                      }),
-                      datasets: [
-                        {
-                          label: 'Daily Revenue',
-                          data: salesReportData.revenueByDay.map(day => day.revenue),
-                          borderColor: 'rgb(79, 70, 229)',
-                          backgroundColor: 'rgba(79, 70, 229, 0.1)',
-                          tension: 0.3,
-                          fill: true,
-                          pointBackgroundColor: 'rgb(79, 70, 229)',
-                          pointRadius: 4,
-                          pointHoverRadius: 6,
-                        },
-                      ],
-                    }}
+                    data={salesChartData}
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
@@ -511,10 +741,10 @@ export default function ReportsPage() {
                 <div className="h-64 flex items-center">
                   <Doughnut
                     data={{
-                      labels: salesReportData.orderTypes.map(type => type.type),
+                      labels: safeOrderTypes.map((type: OrderType) => type.type),
                       datasets: [
                         {
-                          data: salesReportData.orderTypes.map(type => type.amount),
+                          data: safeOrderTypes.map((type: OrderType) => type.amount),
                           backgroundColor: [
                             'rgba(79, 70, 229, 0.8)',  // Indigo
                             'rgba(59, 130, 246, 0.8)', // Blue
@@ -560,114 +790,77 @@ export default function ReportsPage() {
             </div>
             
             {/* Top Selling Items */}
-            <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100 mb-6">
-              <div className="flex justify-between items-center mb-5">
-                <h2 className="text-lg font-semibold text-gray-800">Top Selling Items</h2>
-                <button className="text-indigo-600 text-sm font-medium hover:text-indigo-800">
-                  View All
-                </button>
-              </div>
-              
-              <div className="overflow-x-auto mb-6">
-                <table className="w-full">
+            <div className="bg-white p-5 rounded-lg shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Top Selling Items</h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
                   <thead>
-                    <tr className="bg-gray-50 text-left">
-                      <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
-                      <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity Sold</th>
-                      <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
-                      <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">% of Sales</th>
+                    <tr>
+                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                      <th className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                      <th className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {salesReportData.topSellingItems.map((item, idx) => (
+                    {safeTopSellingItems.map((item: TopSellingItem, idx: number) => (
                       <tr key={idx} className="border-b border-gray-100">
                         <td className="py-3 px-4">
-                          <p className="font-medium text-gray-800">{item.name}</p>
+                          <div className="font-medium text-gray-900">{item.name}</div>
                         </td>
-                        <td className="py-3 px-4">
-                          <p className="text-gray-600">{item.quantity}</p>
-                        </td>
-                        <td className="py-3 px-4">
-                          <p className="font-medium text-gray-800">{formatCurrency(item.revenue)}</p>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center">
-                            <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2 max-w-[100px]">
-                              <div 
-                                className="bg-indigo-600 h-2.5 rounded-full" 
-                                style={{ width: `${Math.round((item.revenue / totalSales) * 100)}%` }}
-                              ></div>
-                            </div>
-                            <span className="text-gray-600 text-sm">{Math.round((item.revenue / totalSales) * 100)}%</span>
-                          </div>
-                        </td>
+                        <td className="py-3 px-4 text-right">{item.quantity}</td>
+                        <td className="py-3 px-4 text-right font-medium">{formatCurrency(item.revenue)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              
-              {/* Add Bar Chart for Top Selling Items */}
-              <div className="h-64 mt-8">
+            </div>
+            
+            {/* Revenue by Item Chart */}
+            <div className="bg-white p-5 rounded-lg shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Revenue by Item</h2>
+              <div className="h-80">
                 <Bar 
                   data={{
-                    labels: salesReportData.topSellingItems.map(item => item.name),
+                    labels: safeTopSellingItems.map((item: TopSellingItem) => item.name),
                     datasets: [
                       {
                         label: 'Revenue',
-                        data: salesReportData.topSellingItems.map(item => item.revenue),
+                        data: safeTopSellingItems.map((item: TopSellingItem) => item.revenue),
                         backgroundColor: 'rgba(79, 70, 229, 0.7)',
                         borderColor: 'rgb(79, 70, 229)',
-                        borderWidth: 1,
+                        borderWidth: 1
                       },
                       {
                         label: 'Quantity Sold',
-                        data: salesReportData.topSellingItems.map(item => item.quantity * 100), // Scale quantity for visibility
+                        data: safeTopSellingItems.map((item: TopSellingItem) => item.quantity * 100), // Scale quantity for visibility
                         backgroundColor: 'rgba(16, 185, 129, 0.7)',
                         borderColor: 'rgb(16, 185, 129)',
                         borderWidth: 1,
+                        yAxisID: 'y1'
                       }
-                    ],
+                    ]
                   }}
                   options={{
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                      legend: {
-                        position: 'top',
-                        align: 'end',
-                      },
-                      tooltip: {
-                        callbacks: {
-                          label: function(context) {
-                            const label = context.dataset.label;
-                            const value = context.parsed.y;
-                            if (label === 'Revenue') {
-                              return `${label}: ${formatCurrency(value)}`;
-                            } else {
-                              return `${label}: ${value / 100}`; // Unscale the quantity
-                            }
-                          }
-                        }
-                      }
-                    },
                     scales: {
                       y: {
                         beginAtZero: true,
-                        ticks: {
-                          callback: function(value) {
-                            return '₹' + value.toLocaleString('en-IN');
-                          }
-                        },
                         title: {
                           display: true,
                           text: 'Revenue (₹)'
                         }
                       },
-                      x: {
-                        ticks: {
-                          maxRotation: 45,
-                          minRotation: 45
+                      y1: {
+                        beginAtZero: true,
+                        position: 'right',
+                        title: {
+                          display: true,
+                          text: 'Quantity Sold'
+                        },
+                        grid: {
+                          drawOnChartArea: false
                         }
                       }
                     }
@@ -676,47 +869,53 @@ export default function ReportsPage() {
               </div>
             </div>
             
-            {/* Order Type & Payment Method */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4">Order Type Breakdown</h2>
-                <div className="space-y-4">
-                  {salesReportData.orderTypes.map((type, idx) => (
-                    <div key={idx}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-gray-700">{type.type}</span>
-                        <span className="text-gray-700 font-medium">{formatCurrency(type.amount)}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div 
-                          className="bg-indigo-600 h-2.5 rounded-full" 
-                          style={{ width: `${type.percentage}%` }}
-                        ></div>
-                      </div>
-                      <div className="text-right text-xs text-gray-500 mt-1">{type.percentage}%</div>
+            {/* Order Type Breakdown */}
+            <div className="bg-white p-5 rounded-lg shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Order Type Breakdown</h2>
+              <div className="space-y-4">
+                {safeOrderTypes.map((type: OrderType, idx: number) => (
+                  <div key={idx}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-medium">{type.type || type.status}</span>
+                      <span>{formatCurrency(type.amount)}</span>
                     </div>
-                  ))}
-                </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-indigo-600 h-2 rounded-full" 
+                        style={{ width: `${type.percentage}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>{type.count} orders</span>
+                      <span>{type.percentage}%</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4">Payment Method Breakdown</h2>
-                <div className="space-y-4">
-                  {salesReportData.paymentMethods.map((method, idx) => (
-                    <div key={idx}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-gray-700">{method.method}</span>
-                        <span className="text-gray-700 font-medium">{formatCurrency(method.amount)}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div 
-                          className="bg-indigo-600 h-2.5 rounded-full" 
-                          style={{ width: `${method.percentage}%` }}
-                        ></div>
-                      </div>
-                      <div className="text-right text-xs text-gray-500 mt-1">{method.percentage}%</div>
+            </div>
+            
+            {/* Payment Methods Breakdown */}
+            <div className="bg-white p-5 rounded-lg shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Payment Method Breakdown</h2>
+              <div className="space-y-4">
+                {safePaymentMethods.map((method: PaymentMethod, idx: number) => (
+                  <div key={idx}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-medium">{method.method}</span>
+                      <span>{formatCurrency(method.amount)}</span>
                     </div>
-                  ))}
-                </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-indigo-600 h-2 rounded-full" 
+                        style={{ width: `${method.percentage}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>{method.count} transactions</span>
+                      <span>{method.percentage}%</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </>
@@ -728,28 +927,28 @@ export default function ReportsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
               <StatCard 
                 title="Total Customers" 
-                value="428" 
+                value={customersData.totalCustomers.toString()} 
                 icon={<FaChartLine />} 
                 change="+15.2% from previous period" 
                 changeType="positive" 
               />
               <StatCard 
                 title="New Customers" 
-                value="65" 
+                value={customersData.newCustomers.toString()} 
                 icon={<FaChartBar />} 
                 change="+23.6% from previous period" 
                 changeType="positive" 
               />
               <StatCard 
                 title="Repeat Customers" 
-                value="72%" 
+                value={customersData.repeatCustomers.toString()} 
                 icon={<FaChartPie />} 
                 change="+4.8% from previous period" 
                 changeType="positive" 
               />
               <StatCard 
                 title="Avg. Customer Value" 
-                value={formatCurrency(8450)} 
+                value={formatCurrency(8450)}  // Use fixed value to avoid hydration mismatch
                 icon={<FaTable />} 
                 change="+7.2% from previous period" 
                 changeType="positive" 
@@ -902,23 +1101,22 @@ export default function ReportsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {topCustomers.map((customer, idx) => (
-                      <tr key={idx} className="border-b border-gray-100">
-                        <td className="py-3 px-4">
-                          <p className="font-medium text-gray-800">{customer.name}</p>
-                        </td>
-                        <td className="py-3 px-4">
-                          <p className="text-gray-600">{customer.orders}</p>
-                        </td>
-                        <td className="py-3 px-4">
-                          <p className="font-medium text-gray-800">{formatCurrency(customer.spent)}</p>
-                        </td>
-                        <td className="py-3 px-4">
-                          <p className="text-gray-600">{formatDate(customer.lastOrder)}</p>
-                        </td>
-                        <td className="py-3 px-4">
-                          <p className="font-medium text-gray-800">{formatCurrency(customer.spent * 1.5)}</p>
-                        </td>
+                    {safeTopCustomers.map((customer: {
+                      id: string;
+                      name: string;
+                      totalSpent: number;
+                      visitCount: number;
+                      lastVisit: string;
+                      avgOrderValue: number;
+                      loyaltyPoints: number;
+                    }, idx: number) => (
+                      <tr key={`customer-${idx}`} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-2">{customer.name}</td>
+                        <td className="px-4 py-2">${customer.totalSpent.toFixed(2)}</td>
+                        <td className="px-4 py-2">{customer.visitCount}</td>
+                        <td className="px-4 py-2">{formatDate(customer.lastVisit)}</td>
+                        <td className="px-4 py-2">${customer.avgOrderValue.toFixed(2)}</td>
+                        <td className="px-4 py-2">{customer.loyaltyPoints}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -970,11 +1168,11 @@ export default function ReportsPage() {
                 <div className="h-64">
                   <Bar 
                     data={{
-                      labels: inventoryReportData.stockCategories.map(item => item.category),
+                      labels: safeStockCategories.map(item => item.category),
                       datasets: [
                         {
                           label: 'Stock Value',
-                          data: inventoryReportData.stockCategories.map(item => item.totalValue),
+                          data: safeStockCategories.map(item => item.totalValue),
                           backgroundColor: 'rgba(79, 70, 229, 0.7)',
                           borderColor: 'rgb(79, 70, 229)',
                           borderWidth: 1,
@@ -1019,14 +1217,14 @@ export default function ReportsPage() {
                 <div className="h-64">
                   <Line 
                     data={{
-                      labels: inventoryReportData.stockMovement.map(day => {
+                      labels: safeStockMovement.map(day => {
                         const date = new Date(day.date);
                         return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
                       }),
                       datasets: [
                         {
                           label: 'Incoming Stock',
-                          data: inventoryReportData.stockMovement.map(day => day.incoming),
+                          data: safeStockMovement.map(day => day.incoming),
                           borderColor: 'rgb(16, 185, 129)',
                           backgroundColor: 'rgba(16, 185, 129, 0.1)',
                           tension: 0.3,
@@ -1034,7 +1232,7 @@ export default function ReportsPage() {
                         },
                         {
                           label: 'Outgoing Stock',
-                          data: inventoryReportData.stockMovement.map(day => day.outgoing),
+                          data: safeStockMovement.map(day => day.outgoing),
                           borderColor: 'rgb(239, 68, 68)',
                           backgroundColor: 'rgba(239, 68, 68, 0.1)',
                           tension: 0.3,
@@ -1093,7 +1291,7 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {inventoryReportData.lowStockItems.map((item, idx) => (
+                      {safeLowStockItems.map((item, idx) => (
                         <tr key={idx} className="border-b border-gray-100">
                           <td className="py-3 px-4">
                             <p className="font-medium text-gray-800">{item.name}</p>
@@ -1152,7 +1350,7 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {inventoryReportData.expiryWarnings.map((item, idx) => {
+                      {safeExpiryWarnings.map((item, idx) => {
                         const expiryDate = new Date(item.expiryDate);
                         const today = new Date();
                         const daysLeft = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -1235,10 +1433,10 @@ export default function ReportsPage() {
                 <div className="h-64 flex items-center">
                   <Pie
                     data={{
-                      labels: staffReportData.staffDistribution.map(item => item.department),
+                      labels: safeStaffDistribution.map(item => item.department),
                       datasets: [
                         {
-                          data: staffReportData.staffDistribution.map(item => item.count),
+                          data: safeStaffDistribution.map(item => item.count),
                           backgroundColor: [
                             'rgba(79, 70, 229, 0.7)',   // Indigo - Kitchen
                             'rgba(16, 185, 129, 0.7)',  // Green - Service
@@ -1273,7 +1471,7 @@ export default function ReportsPage() {
                         tooltip: {
                           callbacks: {
                             label: function(context) {
-                              const item = staffReportData.staffDistribution[context.dataIndex];
+                              const item = safeStaffDistribution[context.dataIndex];
                               return `${item.department}: ${item.count} (${item.costPercentage}% of costs)`;
                             }
                           }
@@ -1288,11 +1486,11 @@ export default function ReportsPage() {
                 <div className="h-64">
                   <Bar 
                     data={{
-                      labels: staffReportData.workHours.map(day => day.day),
+                      labels: safeWorkHours.map(day => day.day),
                       datasets: [
                         {
                           label: 'Total Hours',
-                          data: staffReportData.workHours.map(day => day.hours),
+                          data: safeWorkHours.map(day => day.hours),
                           backgroundColor: 'rgba(79, 70, 229, 0.7)',
                           borderColor: 'rgb(79, 70, 229)',
                           borderWidth: 1,
@@ -1337,11 +1535,11 @@ export default function ReportsPage() {
                 <div className="h-64">
                   <Line 
                     data={{
-                      labels: staffReportData.staffingCosts.map(month => month.month),
+                      labels: safeStaffingCosts.map(month => month.month),
                       datasets: [
                         {
                           label: 'Monthly Cost',
-                          data: staffReportData.staffingCosts.map(month => month.cost),
+                          data: safeStaffingCosts.map(month => month.cost),
                           borderColor: 'rgb(239, 68, 68)',
                           backgroundColor: 'rgba(239, 68, 68, 0.1)',
                           tension: 0.3,
@@ -1399,7 +1597,7 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {staffReportData.topPerformers.map((staff, idx) => (
+                      {safeTopPerformers.map((staff, idx) => (
                         <tr key={idx} className="border-b border-gray-100">
                           <td className="py-3 px-4">
                             <p className="font-medium text-gray-800">{staff.name}</p>
@@ -1480,11 +1678,11 @@ export default function ReportsPage() {
                 <div className="h-64">
                   <Bar 
                     data={{
-                      labels: menuReportData.categoryPerformance.map(cat => cat.category),
+                      labels: safeCategoryPerformance.map(cat => cat.category),
                       datasets: [
                         {
                           label: 'Revenue',
-                          data: menuReportData.categoryPerformance.map(cat => cat.revenue),
+                          data: safeCategoryPerformance.map(cat => cat.revenue),
                           backgroundColor: 'rgba(79, 70, 229, 0.7)',
                           borderColor: 'rgb(79, 70, 229)',
                           borderWidth: 1,
@@ -1525,10 +1723,10 @@ export default function ReportsPage() {
                 <div className="h-64 flex items-center">
                   <Doughnut
                     data={{
-                      labels: menuReportData.revenueByTimeOfDay.map(slot => slot.timeSlot),
+                      labels: safeRevenueByTimeOfDay.map(slot => slot.timeSlot),
                       datasets: [
                         {
-                          data: menuReportData.revenueByTimeOfDay.map(slot => slot.revenue),
+                          data: safeRevenueByTimeOfDay.map(slot => slot.revenue),
                           backgroundColor: [
                             'rgba(245, 158, 11, 0.7)',  // Amber
                             'rgba(79, 70, 229, 0.7)',   // Indigo
@@ -1562,7 +1760,7 @@ export default function ReportsPage() {
                           callbacks: {
                             label: function(context) {
                               const value = context.parsed;
-                              const totalRevenue = menuReportData.revenueByTimeOfDay.reduce((a, b) => a + b.revenue, 0);
+                              const totalRevenue = safeRevenueByTimeOfDay.reduce((a, b) => a + b.revenue, 0);
                               const percentage = Math.round((value / totalRevenue) * 100);
                               return `${context.label}: ${formatCurrency(value)} (${percentage}%)`;
                             }
@@ -1598,7 +1796,7 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {menuReportData.menuItemProfitability.map((item, idx) => (
+                      {safeMenuItemProfitability.map((item, idx) => (
                         <tr key={idx} className="border-b border-gray-100">
                           <td className="py-3 px-4">
                             <p className="font-medium text-gray-800">{item.name}</p>
@@ -1650,7 +1848,7 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {menuReportData.itemPopularity.map((item, idx) => (
+                      {safeItemPopularity.map((item, idx) => (
                         <tr key={idx} className="border-b border-gray-100">
                           <td className="py-3 px-4">
                             <p className="font-medium text-gray-800">{item.name}</p>
@@ -1695,7 +1893,10 @@ export default function ReportsPage() {
           <FaDownload className="mr-2" />
           <span>Download CSV</span>
         </button>
-        <button className="flex items-center bg-white border border-gray-300 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50">
+        <button 
+          onClick={() => window.print()}
+          className="flex items-center bg-white border border-gray-300 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50"
+        >
           <FaPrint className="mr-2" />
           <span>Print Report</span>
         </button>

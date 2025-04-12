@@ -4,6 +4,11 @@ import { getToken } from 'next-auth/jwt';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
+  // Explicitly allow /api/auth/session to pass through without any checks
+  if (pathname === '/api/auth/session') {
+    return NextResponse.next();
+  }
+  
   // Public routes that don't require authentication
   if (
     pathname === '/' ||
@@ -36,6 +41,14 @@ export async function middleware(request: NextRequest) {
       secret: process.env.NEXTAUTH_SECRET,
     });
     
+    // For API routes, handle differently (return 401 instead of redirecting)
+    if (pathname.startsWith('/api/')) {
+      if (!token || token.role !== requiredRole) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      return NextResponse.next();
+    }
+    
     // If there's no token, redirect to login
     if (!token) {
       const url = new URL('/login', request.url);
@@ -46,6 +59,14 @@ export async function middleware(request: NextRequest) {
     // Check role permission
     const userRole = token.role as string;
     
+    // Skip role redirects for subpaths within the same role section
+    // Example: If a manager tries to access /manager/tables, don't redirect
+    // This prevents the issue where refreshing a subpage redirects to the main page
+    if (pathname.startsWith(`/${userRole}/`) || pathname === `/${userRole}`) {
+      return NextResponse.next();
+    }
+    
+    // User is trying to access a section they don't have permission for
     if (userRole !== requiredRole) {
       // User doesn't have permission for this route, redirect to their home page
       let redirectPath = '/login';

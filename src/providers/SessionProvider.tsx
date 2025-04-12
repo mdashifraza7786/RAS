@@ -8,5 +8,15 @@ type SessionProviderProps = {
 };
 
 export function SessionProvider({ children }: SessionProviderProps) {
-  return <NextAuthSessionProvider>{children}</NextAuthSessionProvider>;
+  return (
+    <NextAuthSessionProvider 
+      // Disable automatic session refreshing during navigation
+      // to prevent unnecessary /api/auth/session calls
+      refetchInterval={0} 
+      refetchOnWindowFocus={false}
+      refetchWhenOffline={false}
+    >
+      {children}
+    </NextAuthSessionProvider>
+  );
 } 

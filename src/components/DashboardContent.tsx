@@ -6,6 +6,9 @@ import {
   FaSearch,
   FaBell
 } from 'react-icons/fa';
+import { useManagerDashboard } from '@/hooks/useManagerDashboard';
+import { useManagerOrders } from '@/hooks/useManagerOrders';
+import { formatDistanceToNow } from 'date-fns';
 
 interface StatCardProps {
   title: string;
@@ -35,48 +38,74 @@ const StatCard = ({ title, value, icon, trend, trendColor }: StatCardProps) => {
 };
 
 interface RecentOrderRowProps {
-  orderNumber: string;
-  customer: string;
-  items: number;
-  total: string;
-  status: 'completed' | 'preparing' | 'delivered';
-  time: string;
+  order: {
+    id: string;
+    orderNumber: string;
+    customerName: string;
+    itemsCount: number;
+    total: number;
+    status: 'pending' | 'processing' | 'completed' | 'cancelled';
+    createdAt: string;
+  };
 }
 
-const RecentOrderRow = ({ orderNumber, customer, items, total, status, time }: RecentOrderRowProps) => {
-  const statusColors = {
-    completed: 'bg-green-100 text-green-800',
-    preparing: 'bg-yellow-100 text-yellow-800',
-    delivered: 'bg-blue-100 text-blue-800'
+const RecentOrderRow: React.FC<RecentOrderRowProps> = ({ order }) => {
+  const getStatusColor = (status: RecentOrderRowProps['order']['status']) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'processing':
+        return 'bg-blue-100 text-blue-800';
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
   };
 
   return (
     <tr className="border-b border-gray-100">
       <td className="py-3 px-4">
-        <p className="font-medium text-gray-800">#{orderNumber}</p>
+        <p className="font-medium text-gray-800">#{order.orderNumber}</p>
       </td>
       <td className="py-3 px-4">
-        <p className="text-gray-600">{customer}</p>
+        <p className="text-gray-600">{order.customerName || 'Guest'}</p>
       </td>
       <td className="py-3 px-4">
-        <p className="text-gray-600">{items} items</p>
+        <p className="text-gray-600">{order.itemsCount} items</p>
       </td>
       <td className="py-3 px-4">
-        <p className="font-medium text-gray-800">{total}</p>
+        <p className="font-medium text-gray-800">{order.total}</p>
       </td>
       <td className="py-3 px-4">
-        <span className={`inline-block py-1 px-2.5 rounded-full text-xs font-medium ${statusColors[status]}`}>
-          {status.charAt(0).toUpperCase() + status.slice(1)}
+        <span className={`inline-block py-1 px-2.5 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
+          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
         </span>
       </td>
       <td className="py-3 px-4">
-        <p className="text-gray-500 text-sm">{time}</p>
+        <p className="text-gray-500 text-sm">{formatDistanceToNow(new Date(order.createdAt), { addSuffix: true })}</p>
       </td>
     </tr>
   );
 };
 
 const DashboardContent = () => {
+  const { stats, loading: statsLoading, error: statsError, formatCurrency, formatPercentage } = useManagerDashboard();
+  const { orders, loading: ordersLoading, error: ordersError } = useManagerOrders({ limit: 5 });
+
+  // Format order data for display
+  const recentOrders = orders.map(order => ({
+    orderNumber: order.orderNumber.toString(),
+    customer: order.customerName || 'Guest',
+    items: order.items.length,
+    total: formatCurrency(order.total),
+    status: order.status === 'completed' ? 'completed' : 
+            order.status === 'in-progress' ? 'preparing' : 'delivered',
+    time: formatDistanceToNow(new Date(order.createdAt), { addSuffix: true })
+  }));
+
   return (
     <div className="p-8">
       {/* Top Bar */}
@@ -103,34 +132,53 @@ const DashboardContent = () => {
       
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard 
-          title="Total Revenue" 
-          value="₹24,509.00" 
-          icon={<FaMoneyBillWave />} 
-          trend="+12.5% from last month" 
-          trendColor="green" 
-        />
-        <StatCard 
-          title="Total Orders" 
-          value="452" 
-          icon={<FaUtensils />} 
-          trend="+8.2% from last month" 
-          trendColor="green" 
-        />
-        <StatCard 
-          title="New Customers" 
-          value="64" 
-          icon={<FaUsers />} 
-          trend="+14.6% from last month" 
-          trendColor="green" 
-        />
-        <StatCard 
-          title="Avg. Order Value" 
-          value="₹769" 
-          icon={<FaChartLine />} 
-          trend="Increased by ₹32" 
-          trendColor="blue" 
-        />
+        {statsLoading ? (
+          // Loading skeletons
+          Array(4).fill(0).map((_, i) => (
+            <div key={i} className="bg-white rounded-lg p-5 shadow-sm border border-gray-100 animate-pulse">
+              <div className="h-6 bg-gray-200 rounded w-1/3 mb-2"></div>
+              <div className="h-8 bg-gray-300 rounded w-1/2 mb-4"></div>
+              <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+            </div>
+          ))
+        ) : statsError ? (
+          // Error state
+          <div className="col-span-4 bg-red-50 p-4 rounded-lg text-red-600">
+            Failed to load dashboard statistics. Please try again later.
+          </div>
+        ) : stats ? (
+          // Actual data
+          <>
+            <StatCard 
+              title="Total Revenue" 
+              value={formatCurrency(stats.revenue.current)} 
+              icon={<FaMoneyBillWave />} 
+              trend={`${formatPercentage(stats.revenue.growth)} from last month`} 
+              trendColor={stats.revenue.growth >= 0 ? "green" : "blue"} 
+            />
+            <StatCard 
+              title="Total Orders" 
+              value={stats.orders.total.toString()} 
+              icon={<FaUtensils />} 
+              trend={`${formatPercentage(stats.orders.growth)} from last month`} 
+              trendColor={stats.orders.growth >= 0 ? "green" : "blue"} 
+            />
+            <StatCard 
+              title="New Customers" 
+              value={stats.customers.new.toString()} 
+              icon={<FaUsers />} 
+              trend={`${formatPercentage(stats.customers.growth)} from last month`} 
+              trendColor={stats.customers.growth >= 0 ? "green" : "blue"} 
+            />
+            <StatCard 
+              title="Avg. Order Value" 
+              value={formatCurrency(stats.averageOrderValue.current)} 
+              icon={<FaChartLine />} 
+              trend={`${stats.averageOrderValue.current > stats.averageOrderValue.previous ? 'Increased' : 'Decreased'} by ${formatCurrency(Math.abs(stats.averageOrderValue.current - stats.averageOrderValue.previous))}`} 
+              trendColor={stats.averageOrderValue.current > stats.averageOrderValue.previous ? "green" : "blue"} 
+            />
+          </>
+        ) : null}
       </div>
       
       {/* Chart Section (Placeholder) */}
@@ -158,54 +206,58 @@ const DashboardContent = () => {
           </button>
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
-                <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              <RecentOrderRow 
-                orderNumber="3842" 
-                customer="Raj Mehta" 
-                items={3} 
-                total="₹842.50" 
-                status="completed" 
-                time="10 mins ago" 
-              />
-              <RecentOrderRow 
-                orderNumber="3841" 
-                customer="Priya Singh" 
-                items={2} 
-                total="₹655.00" 
-                status="preparing" 
-                time="25 mins ago" 
-              />
-              <RecentOrderRow 
-                orderNumber="3840" 
-                customer="Aman Verma" 
-                items={5} 
-                total="₹1,245.00" 
-                status="delivered" 
-                time="45 mins ago" 
-              />
-              <RecentOrderRow 
-                orderNumber="3839" 
-                customer="Nisha Patel" 
-                items={1} 
-                total="₹320.00" 
-                status="completed" 
-                time="1 hour ago" 
-              />
-            </tbody>
-          </table>
-        </div>
+        {ordersLoading ? (
+          // Loading skeleton
+          <div className="animate-pulse">
+            <div className="h-10 bg-gray-200 rounded mb-4"></div>
+            {Array(4).fill(0).map((_, i) => (
+              <div key={i} className="h-16 bg-gray-100 rounded mb-2"></div>
+            ))}
+          </div>
+        ) : ordersError ? (
+          // Error state
+          <div className="bg-red-50 p-4 rounded-lg text-red-600">
+            Failed to load recent orders. Please try again later.
+          </div>
+        ) : recentOrders.length > 0 ? (
+          // Actual data
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50 text-left">
+                  <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+                  <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                  <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                  <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                  <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentOrders.map((order) => (
+                  <RecentOrderRow 
+                    key={order.orderNumber}
+                    order={{
+                      id: '',
+                      orderNumber: order.orderNumber,
+                      customerName: order.customer,
+                      itemsCount: order.items,
+                      total: parseFloat(order.total.replace(/[^0-9.]/g, '')),
+                      status: order.status === 'completed' ? 'completed' : 
+                              order.status === 'in-progress' ? 'processing' : 'pending',
+                      createdAt: order.time
+                    }}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          // Empty state
+          <div className="text-center py-8 text-gray-500">
+            No recent orders found.
+          </div>
+        )}
       </div>
     </div>
   );

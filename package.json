@@ -7,11 +7,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed-users": "node --require ts-node/register src/scripts/seed-users.ts"
+    "seed-users": "node --require ts-node/register src/scripts/seed-users.ts",
+    "seed-data": "node --require ts-node/register src/scripts/seed-data.ts",
+    "seed": "node src/scripts/run-seeds.mjs"
   },
   "dependencies": {
+    "axios": "^1.8.4",
     "bcryptjs": "^3.0.2",
     "chart.js": "^4.4.8",
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.4.4",
     "mongodb": "^6.15.0",
     "mongoose": "^8.13.1",
     "next": "15.2.4",
@@ -19,6 +24,7 @@
     "react": "^19.0.0",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.5.2",
     "react-icons": "^5.5.0"
   },
   "devDependencies": {

@@ -10,11 +10,22 @@ import {
   FaUtensils,
   FaArrowRight,
   FaUserClock,
-  FaMoneyBillWave
+  FaMoneyBillWave,
+  FaSpinner
 } from 'react-icons/fa';
 import Link from 'next/link';
+import { ManagerStatCards } from '@/components/dashboard/StatCards';
+import { useStats, ManagerStats } from '@/hooks/useStats';
 
 export default function ManagerDashboard() {
+  // Fetch dashboard stats
+  const { stats, loading, error } = useStats();
+
+  // Check if the stats are for manager role
+  const isManagerStats = (stats: any): stats is ManagerStats => {
+    return stats && 'tableStats' in stats;
+  };
+
   // Quick statistics for the dashboard
   const quickStats = [
     { label: 'Total Staff', value: '24', icon: <FaUsers className="text-indigo-500" />, link: '/manager/staff' },
@@ -69,6 +80,25 @@ export default function ManagerDashboard() {
         <p className="text-gray-600">Here&apos;s an overview of your restaurant</p>
       </div>
 
+      {/* Loading state */}
+      {loading && (
+        <div className="flex justify-center items-center h-40">
+          <FaSpinner className="animate-spin text-2xl text-gray-500" />
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <p>Failed to load dashboard data. Please try again later.</p>
+        </div>
+      )}
+
+      {/* Stats Cards */}
+      {!loading && !error && stats && isManagerStats(stats) && (
+        <ManagerStatCards stats={stats} />
+      )}
+
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {quickStats.map((stat, index) => (
@@ -105,61 +135,86 @@ export default function ManagerDashboard() {
         ))}
       </div>
       
-      {/* Recent Activity */}
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Recent Activities</h2>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100">
-            <div className="flex items-start">
-              <div className="rounded-full bg-green-100 p-2 mr-4">
-                <FaUsers className="text-green-600" />
+      {/* Recent Activity and Orders Sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        {/* Recent Orders */}
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h2 className="text-xl font-semibold mb-4">Recent Orders</h2>
+          {!loading && !error && stats && isManagerStats(stats) ? (
+            stats.pendingOrders.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Table</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {stats.pendingOrders.map((order) => (
+                      <tr key={order._id}>
+                        <td className="px-6 py-4 whitespace-nowrap">{order.orderNumber}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{order.table?.name || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">₹{order.total.toLocaleString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                            {order.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <div>
-                <p className="text-gray-800 font-medium">Staff attendance updated</p>
-                <p className="text-gray-500 text-sm">18 staff members marked present today</p>
-                <p className="text-gray-400 text-xs mt-1">Today, 9:30 AM</p>
-              </div>
+            ) : (
+              <p className="text-gray-500">No pending orders</p>
+            )
+          ) : (
+            <div className="h-40 flex items-center justify-center">
+              <p className="text-gray-500">Loading orders...</p>
             </div>
-          </div>
-          
-          <div className="p-4 border-b border-gray-100">
-            <div className="flex items-start">
-              <div className="rounded-full bg-blue-100 p-2 mr-4">
-                <FaMoneyBillWave className="text-blue-600" />
+          )}
+        </div>
+
+        {/* Recent Customers */}
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h2 className="text-xl font-semibold mb-4">Recent Customers</h2>
+          {!loading && !error && stats && isManagerStats(stats) ? (
+            stats.recentCustomers.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visits</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Visit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {stats.recentCustomers.map((customer) => (
+                      <tr key={customer._id}>
+                        <td className="px-6 py-4 whitespace-nowrap">{customer.name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{customer.phone}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{customer.visits}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {new Date(customer.lastVisit).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <div>
-                <p className="text-gray-800 font-medium">New payment received</p>
-                <p className="text-gray-500 text-sm">Order #3842 - ₹1,240</p>
-                <p className="text-gray-400 text-xs mt-1">Today, 8:45 AM</p>
-              </div>
+            ) : (
+              <p className="text-gray-500">No recent customers</p>
+            )
+          ) : (
+            <div className="h-40 flex items-center justify-center">
+              <p className="text-gray-500">Loading customers...</p>
             </div>
-          </div>
-          
-          <div className="p-4 border-b border-gray-100">
-            <div className="flex items-start">
-              <div className="rounded-full bg-orange-100 p-2 mr-4">
-                <FaClipboardList className="text-orange-600" />
-              </div>
-              <div>
-                <p className="text-gray-800 font-medium">Inventory updated</p>
-                <p className="text-gray-500 text-sm">6 items restocked</p>
-                <p className="text-gray-400 text-xs mt-1">Yesterday, 5:30 PM</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-4">
-            <div className="flex items-start">
-              <div className="rounded-full bg-indigo-100 p-2 mr-4">
-                <FaCalendarAlt className="text-indigo-600" />
-              </div>
-              <div>
-                <p className="text-gray-800 font-medium">Schedule updated</p>
-                <p className="text-gray-500 text-sm">Staff schedule for next week published</p>
-                <p className="text-gray-400 text-xs mt-1">Yesterday, 2:15 PM</p>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

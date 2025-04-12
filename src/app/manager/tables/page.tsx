@@ -1,75 +1,150 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FaPlus, FaEdit, FaTrash, FaUsers, FaCircle } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
+import { useSession } from 'next-auth/react';
 
+// Define simplified table interface for the component
 interface Table {
-  id: number;
+  _id: string;
+  number: number;
   name: string;
   capacity: number;
-  status: 'available' | 'occupied' | 'reserved';
-  occupied_since?: string;
-  reservation_time?: string;
+  status: 'available' | 'occupied' | 'reserved' | 'cleaning';
+  location?: string;
+  currentOrder?: any;
 }
 
-// Sample data
-const initialTables: Table[] = [
-  { id: 1, name: 'Table 1', capacity: 2, status: 'available' },
-  { id: 2, name: 'Table 2', capacity: 4, status: 'occupied', occupied_since: '12:30 PM' },
-  { id: 3, name: 'Table 3', capacity: 6, status: 'reserved', reservation_time: '7:00 PM' },
-  { id: 4, name: 'Table 4', capacity: 2, status: 'available' },
-  { id: 5, name: 'Table 5', capacity: 8, status: 'available' },
-  { id: 6, name: 'Table 6', capacity: 4, status: 'occupied', occupied_since: '1:15 PM' },
-  { id: 7, name: 'Table 7', capacity: 2, status: 'available' },
-  { id: 8, name: 'Table 8', capacity: 6, status: 'reserved', reservation_time: '8:30 PM' },
-];
+// Define type for new table without _id
+type NewTable = Omit<Table, '_id' | 'currentOrder'>;
 
 const statusColors = {
   available: 'text-green-500',
   occupied: 'text-red-500',
   reserved: 'text-amber-500',
+  cleaning: 'text-blue-500'
 };
 
 const statusLabels = {
   available: 'Available',
   occupied: 'Occupied',
   reserved: 'Reserved',
+  cleaning: 'Cleaning'
 };
 
 export default function TablesPage() {
-  const [tables, setTables] = useState<Table[]>(initialTables);
+  const { data: session } = useSession();
+  const [tables, setTables] = useState<Table[]>([]);
   const [isAddingTable, setIsAddingTable] = useState(false);
   const [isEditingTable, setIsEditingTable] = useState(false);
   const [filter, setFilter] = useState<string>('all');
-  const [newTable, setNewTable] = useState<Omit<Table, 'id'>>({
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [newTable, setNewTable] = useState<NewTable>({
+    number: 0,
     name: '',
     capacity: 2,
     status: 'available',
+    location: 'Main'
   });
   const [editingTable, setEditingTable] = useState<Table | null>(null);
 
-  const handleAddTable = () => {
-    const nextId = Math.max(...tables.map(table => table.id)) + 1;
-    setTables([...tables, { id: nextId, ...newTable }]);
-    setNewTable({ name: '', capacity: 2, status: 'available' });
-    setIsAddingTable(false);
+  // Fetch tables
+  useEffect(() => {
+    fetchTables();
+  }, [filter]);
+
+  const fetchTables = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/manager/tables?status=${filter !== 'all' ? filter : ''}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch tables');
+      }
+      
+      const data = await response.json();
+      setTables(data.tables);
+      setError(null);
+    } catch (err) {
+      setError('Error loading tables. Please try again.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdateStatus = (id: number, status: Table['status']) => {
-    setTables(tables.map(table => 
-      table.id === id 
-        ? { 
-            ...table, 
-            status,
-            occupied_since: status === 'occupied' ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
-            reservation_time: status === 'reserved' ? table.reservation_time : undefined,
-          } 
-        : table
-    ));
+  const handleAddTable = async () => {
+    try {
+      const response = await fetch('/api/manager/tables', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newTable),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create table');
+      }
+
+      const createdTable = await response.json();
+      setTables([...tables, createdTable]);
+      setNewTable({ number: 0, name: '', capacity: 2, status: 'available', location: 'Main' });
+      setIsAddingTable(false);
+      toast.success('Table created successfully');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create table');
+    }
   };
 
-  const handleDeleteTable = (id: number) => {
-    setTables(tables.filter(table => table.id !== id));
+  const handleUpdateStatus = async (id: string, status: Table['status']) => {
+    try {
+      const tableToUpdate = tables.find(t => t._id === id);
+      if (!tableToUpdate) return;
+
+      const response = await fetch('/api/manager/tables', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id,
+          status
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update table status');
+      }
+
+      const updatedTable = await response.json();
+      setTables(tables.map(table => table._id === id ? updatedTable : table));
+      toast.success('Table status updated');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update table status');
+    }
+  };
+
+  const handleDeleteTable = async (id: string) => {
+    try {
+      const response = await fetch(`/api/manager/tables?id=${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete table');
+      }
+
+      setTables(tables.filter(table => table._id !== id));
+      toast.success('Table deleted successfully');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete table');
+    }
   };
 
   const handleEditClick = (table: Table) => {
@@ -77,19 +152,40 @@ export default function TablesPage() {
     setIsEditingTable(true);
   };
 
-  const handleEditSave = () => {
+  const handleEditSave = async () => {
     if (!editingTable) return;
     
-    setTables(tables.map(table => 
-      table.id === editingTable.id ? editingTable : table
-    ));
-    setIsEditingTable(false);
-    setEditingTable(null);
+    try {
+      const response = await fetch('/api/manager/tables', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: editingTable._id,
+          name: editingTable.name,
+          capacity: editingTable.capacity,
+          number: editingTable.number,
+          status: editingTable.status
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update table');
+      }
+
+      const updatedTable = await response.json();
+      setTables(tables.map(table => table._id === editingTable._id ? updatedTable : table));
+      setIsEditingTable(false);
+      setEditingTable(null);
+      toast.success('Table updated successfully');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update table');
+    }
   };
 
-  const filteredTables = filter === 'all' 
-    ? tables 
-    : tables.filter(table => table.status === filter);
+  const filteredTables = tables;
 
   return (
     <div className='p-8'>
@@ -136,80 +232,125 @@ export default function TablesPage() {
           <FaCircle className="mr-2 text-amber-500 text-xs" />
           Reserved
         </button>
-        
+        <button
+          onClick={() => setFilter('cleaning')}
+          className={`px-4 py-2 rounded-lg flex items-center ${filter === 'cleaning' ? 'bg-blue-100 text-blue-800' : 'bg-white text-gray-600'} border border-gray-300`}
+        >
+          <FaCircle className="mr-2 text-blue-500 text-xs" />
+          Cleaning
+        </button>
       </div>
 
+      {/* Loading and error states */}
+      {loading && (
+        <div className="text-center py-10">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading tables...</p>
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6">
+          <p>{error}</p>
+          <button 
+            onClick={fetchTables}
+            className="mt-2 text-red-700 underline"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
       {/* Table layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredTables.map(table => (
-          <div key={table.id} className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-semibold text-lg">{table.name}</h3>
-                <div className="flex items-center mt-1">
-                  <FaUsers className="text-gray-500 mr-2" />
-                  <span className="text-gray-600">Capacity: {table.capacity}</span>
+      {!loading && !error && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredTables.length === 0 ? (
+            <div className="col-span-full text-center py-10 text-gray-500">
+              <p>No tables found. Create a new table to get started.</p>
+            </div>
+          ) : (
+            filteredTables.map(table => (
+              <div key={table._id} className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-semibold text-lg">{table.name}</h3>
+                    <div className="flex items-center mt-1">
+                      <FaUsers className="text-gray-500 mr-2" />
+                      <span className="text-gray-600">Capacity: {table.capacity}</span>
+                    </div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      Table #{table.number}
+                    </div>
+                  </div>
+                  <div className="flex space-x-1">
+                    <button 
+                      className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+                      onClick={() => handleEditClick(table)}
+                    >
+                      <FaEdit />
+                    </button>
+                    <button 
+                      className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                      onClick={() => handleDeleteTable(table._id)}
+                      disabled={table.currentOrder}
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="mt-4">
+                  <div className="flex items-center">
+                    <FaCircle className={`mr-2 text-xs ${statusColors[table.status]}`} />
+                    <span className="font-medium">{statusLabels[table.status]}</span>
+                    {table.currentOrder && (
+                      <span className="ml-2 text-xs text-orange-500 font-medium">• Has Active Order</span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {table.status !== 'available' && (
+                    <button 
+                      onClick={() => handleUpdateStatus(table._id, 'available')}
+                      className="text-sm py-1.5 px-3 bg-green-100 text-green-700 rounded-md hover:bg-green-200"
+                      disabled={!!table.currentOrder}
+                    >
+                      Mark Available
+                    </button>
+                  )}
+                  {table.status !== 'occupied' && (
+                    <button 
+                      onClick={() => handleUpdateStatus(table._id, 'occupied')}
+                      className="text-sm py-1.5 px-3 bg-red-100 text-red-700 rounded-md hover:bg-red-200"
+                    >
+                      Mark Occupied
+                    </button>
+                  )}
+                  {table.status !== 'reserved' && (
+                    <button 
+                      onClick={() => handleUpdateStatus(table._id, 'reserved')}
+                      className="text-sm py-1.5 px-3 bg-amber-100 text-amber-700 rounded-md hover:bg-amber-200"
+                      disabled={!!table.currentOrder}
+                    >
+                      Mark Reserved
+                    </button>
+                  )}
+                  {table.status !== 'cleaning' && (
+                    <button 
+                      onClick={() => handleUpdateStatus(table._id, 'cleaning')}
+                      className="text-sm py-1.5 px-3 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200"
+                      disabled={!!table.currentOrder}
+                    >
+                      Mark Cleaning
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="flex space-x-1">
-                <button 
-                  className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded"
-                  onClick={() => handleEditClick(table)}
-                >
-                  <FaEdit />
-                </button>
-                <button 
-                  className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
-                  onClick={() => handleDeleteTable(table.id)}
-                >
-                  <FaTrash />
-                </button>
-              </div>
-            </div>
-            
-            <div className="mt-4">
-              <div className="flex items-center">
-                <FaCircle className={`mr-2 text-xs ${statusColors[table.status]}`} />
-                <span className="font-medium">{statusLabels[table.status]}</span>
-                {table.occupied_since && (
-                  <span className="ml-2 text-xs text-gray-500">since {table.occupied_since}</span>
-                )}
-                {table.reservation_time && (
-                  <span className="ml-2 text-xs text-gray-500">at {table.reservation_time}</span>
-                )}
-              </div>
-            </div>
-            
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {table.status !== 'available' && (
-                <button 
-                  onClick={() => handleUpdateStatus(table.id, 'available')}
-                  className="text-sm py-1.5 px-3 bg-green-100 text-green-700 rounded-md hover:bg-green-200"
-                >
-                  Mark Available
-                </button>
-              )}
-              {table.status !== 'occupied' && (
-                <button 
-                  onClick={() => handleUpdateStatus(table.id, 'occupied')}
-                  className="text-sm py-1.5 px-3 bg-red-100 text-red-700 rounded-md hover:bg-red-200"
-                >
-                  Mark Occupied
-                </button>
-              )}
-              {table.status !== 'reserved' && (
-                <button 
-                  onClick={() => handleUpdateStatus(table.id, 'reserved')}
-                  className="text-sm py-1.5 px-3 bg-amber-100 text-amber-700 rounded-md hover:bg-amber-200"
-                >
-                  Mark Reserved
-                </button>
-              )}
-              
-            </div>
-          </div>
-        ))}
-      </div>
+            ))
+          )}
+        </div>
+      )}
 
       {/* Add table modal */}
       {isAddingTable && (
@@ -217,6 +358,17 @@ export default function TablesPage() {
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 className="text-xl font-bold mb-4">Add New Table</h3>
             
+            <div className="mb-4">
+              <label className="block text-gray-700 mb-2">Table Number</label>
+              <input 
+                type="number" 
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={newTable.number || ''}
+                onChange={(e) => setNewTable({...newTable, number: parseInt(e.target.value)})}
+                placeholder="e.g. 9"
+              />
+            </div>
+
             <div className="mb-4">
               <label className="block text-gray-700 mb-2">Table Name</label>
               <input 
@@ -251,20 +403,21 @@ export default function TablesPage() {
                 <option value="available">Available</option>
                 <option value="occupied">Occupied</option>
                 <option value="reserved">Reserved</option>
+                <option value="cleaning">Cleaning</option>
               </select>
             </div>
             
             <div className="flex justify-end space-x-3">
               <button 
                 onClick={() => setIsAddingTable(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleAddTable}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                disabled={!newTable.name}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+                disabled={!newTable.name || !newTable.number}
               >
                 Add Table
               </button>
@@ -279,6 +432,16 @@ export default function TablesPage() {
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 className="text-xl font-bold mb-4">Edit Table</h3>
             
+            <div className="mb-4">
+              <label className="block text-gray-700 mb-2">Table Number</label>
+              <input 
+                type="number" 
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={editingTable.number || ''}
+                onChange={(e) => setEditingTable({...editingTable, number: parseInt(e.target.value)})}
+              />
+            </div>
+
             <div className="mb-4">
               <label className="block text-gray-700 mb-2">Table Name</label>
               <input 
@@ -303,18 +466,23 @@ export default function TablesPage() {
             </div>
             
             <div className="mb-4">
-              <label className="block text-gray-700 mb-2">Current Status</label>
-              <div className="flex items-center px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                <FaCircle className={`mr-2 text-xs ${statusColors[editingTable.status]}`} />
-                <span>{statusLabels[editingTable.status]}</span>
-                {editingTable.occupied_since && (
-                  <span className="ml-2 text-xs text-gray-500">since {editingTable.occupied_since}</span>
-                )}
-                {editingTable.reservation_time && (
-                  <span className="ml-2 text-xs text-gray-500">at {editingTable.reservation_time}</span>
-                )}
-              </div>
-              <p className="text-xs text-gray-500 mt-1">Note: Use the table card buttons to change status</p>
+              <label className="block text-gray-700 mb-2">Status</label>
+              <select 
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={editingTable.status}
+                onChange={(e) => setEditingTable({...editingTable, status: e.target.value as Table['status']})}
+                disabled={!!editingTable.currentOrder}
+              >
+                <option value="available">Available</option>
+                <option value="occupied">Occupied</option>
+                <option value="reserved">Reserved</option>
+                <option value="cleaning">Cleaning</option>
+              </select>
+              {editingTable.currentOrder && (
+                <p className="text-xs text-orange-500 mt-1">
+                  Cannot change status while table has an active order
+                </p>
+              )}
             </div>
             
             <div className="flex justify-end space-x-3">
@@ -323,14 +491,14 @@ export default function TablesPage() {
                   setIsEditingTable(false);
                   setEditingTable(null);
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleEditSave}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                disabled={!editingTable.name}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+                disabled={!editingTable.name || !editingTable.number}
               >
                 Save Changes
               </button>

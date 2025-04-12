@@ -13,6 +13,21 @@ import { signOut, useSession } from 'next-auth/react';
 // Store scroll positions for different routes
 const scrollPositions = new Map<string, number>();
 
+// Store the current path the manager was on
+const saveCurrentPath = (path: string) => {
+  if (typeof window !== 'undefined' && path) {
+    sessionStorage.setItem('managerLastPath', path);
+  }
+};
+
+// Get the last path the manager was on
+const getLastPath = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return sessionStorage.getItem('managerLastPath');
+  }
+  return null;
+};
+
 export default function ManagerLayout({
   children,
 }: {
@@ -30,8 +45,55 @@ export default function ManagerLayout({
   const { data: session, status } = useSession();
   const isLoading = status === 'loading';
   const isManager = session?.user?.role === 'manager';
+  const [authChecked, setAuthChecked] = useState(false);
+  const [initialPath, setInitialPath] = useState<string | null>(null);
+  const preventRedirectRef = useRef(false); // Prevent redirect loops
+
+  // Cache session status
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user?.role === 'manager') {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('managerAuthenticated', 'true');
+      }
+    }
+  }, [status, session]);
+
+  // Store the current path on first render
+  useEffect(() => {
+    // On initial load, check if we were redirected from subpage to /manager
+    if (pathname === '/manager') {
+      const lastPath = getLastPath();
+      if (lastPath && lastPath.startsWith('/manager/') && !preventRedirectRef.current) {
+        preventRedirectRef.current = true;
+        router.replace(lastPath);
+        return;
+      }
+    }
+    
+    // Save the current path for future redirects
+    if (pathname.startsWith('/manager/')) {
+      saveCurrentPath(pathname);
+    }
+    
+    if (!initialPath && pathname) {
+      setInitialPath(pathname);
+    }
+  }, [pathname, initialPath, router]);
+
+  // Add a delay before checking auth to allow session rehydration
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAuthChecked(true);
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [status]);
 
   const handleLogout = async () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('managerAuthenticated');
+      sessionStorage.removeItem('managerLastPath');
+    }
     await signOut({ redirect: false });
     router.push('/login');
   };
@@ -98,7 +160,24 @@ export default function ManagerLayout({
   }, [pathname, searchParams]);
 
   // Show loading state
-  if (isLoading) {
+  if (isLoading || (status === 'unauthenticated' && !authChecked)) {
+    // Check if we have a cached session
+    const cachedAuth = typeof window !== 'undefined' ? sessionStorage.getItem('managerAuthenticated') : null;
+    
+    if (cachedAuth === 'true') {
+      // Use cached auth to prevent loading state during brief session check
+      return (
+        <ManagerLayoutContent
+          isMobileMenuOpen={isMobileMenuOpen}
+          setIsMobileMenuOpen={setIsMobileMenuOpen}
+          handleLogout={handleLogout}
+          mainContentRef={mainContentRef}
+        >
+          {children}
+        </ManagerLayoutContent>
+      );
+    }
+    
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-center">
@@ -110,10 +189,57 @@ export default function ManagerLayout({
   }
 
   // Not authenticated/authorized as manager
-  if (!isManager) {
-    return null;
+  if (authChecked && !isManager) {
+    // Only redirect to login if we're definitely not authenticated
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-100">
+          <div className="text-center">
+            <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-600">Redirecting to login...</p>
+          </div>
+        </div>
+      );
+    }
+    
+    // Show loading during refresh instead of redirecting
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authorization...</p>
+        </div>
+      </div>
+    );
   }
 
+  return (
+    <ManagerLayoutContent
+      isMobileMenuOpen={isMobileMenuOpen}
+      setIsMobileMenuOpen={setIsMobileMenuOpen}
+      handleLogout={handleLogout}
+      mainContentRef={mainContentRef}
+    >
+      {children}
+    </ManagerLayoutContent>
+  );
+}
+
+// Extracted layout content component to reduce duplication
+function ManagerLayoutContent({
+  children,
+  isMobileMenuOpen,
+  setIsMobileMenuOpen,
+  handleLogout,
+  mainContentRef
+}: {
+  children: React.ReactNode;
+  isMobileMenuOpen: boolean;
+  setIsMobileMenuOpen: (open: boolean) => void;
+  handleLogout: () => void;
+  mainContentRef: React.RefObject<any>;
+}) {
   return (
     <div className="flex overflow-hidden">
       {/* Desktop Sidebar */}
@@ -154,9 +280,6 @@ export default function ManagerLayout({
             {isMobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
           </button>
         </div>
-
-        {/* Header */}
-       
         
         {/* Page Content - Only this should scroll */}
         <main 

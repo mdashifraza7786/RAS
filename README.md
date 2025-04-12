@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Restaurant Management System
+
+A comprehensive web application for restaurant management with different user roles (manager, waiter, chef, and guest), built with Next.js, TypeScript, MongoDB, and TailwindCSS.
+
+## Features
+
+- **Role-based access control**: Different interfaces for managers, waiters, chefs, and guests
+- **Order management**: Create, track, and update orders
+- **Menu management**: Add, edit, or remove menu items
+- **Table management**: View and update table status
+- **Billing system**: Generate and manage bills
+- **Customer database**: Track customer information and preferences
+- **Kitchen view**: Priority-based order queue for chefs
+- **Guest portal**: Self-service menu browsing and ordering
+
+## Tech Stack
+
+- **Frontend**: Next.js, React, TailwindCSS
+- **Backend**: Next.js API Routes
+- **Database**: MongoDB with Mongoose
+- **Authentication**: NextAuth.js
+- **State Management**: React Context API
+- **Icons**: React Icons
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js (v18 or newer)
+- MongoDB instance (local or Atlas)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Clone the repository
+   ```
+   git clone https://github.com/yourusername/restaurant-management.git
+   cd restaurant-management
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. Install dependencies
+   ```
+   npm install
+   ```
 
-## Learn More
+3. Environment Setup
+   Create a `.env.local` file in the root directory with the following variables:
+   ```
+   MONGODB_URI=your_mongodb_connection_string
+   NEXTAUTH_SECRET=your_nextauth_secret
+   NEXTAUTH_URL=http://localhost:3000
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+4. Seed the database
+   ```
+   npm run seed
+   ```
+   This will create sample users, menu items, tables, and other necessary data.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. Run the development server
+   ```
+   npm run dev
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-## Deploy on Vercel
+## User Accounts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+After running the seed script, the following user accounts are available:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Manager**:
+  - Email: manager@restaurant.com
+  - Password: manager123
+
+- **Waiter**:
+  - Email: waiter@restaurant.com
+  - Password: waiter123
+
+- **Chef**:
+  - Email: chef@restaurant.com
+  - Password: chef123
+
+## Directory Structure
+
+- `/src/app` - Next.js app router pages and layouts
+- `/src/components` - Reusable UI components
+- `/src/lib` - Utility functions and database connection
+- `/src/models` - Mongoose models
+- `/src/scripts` - Database seeding scripts
+- `/src/utils` - Helper functions and utilities
+
+## Development
+
+### Adding New Features
+
+1. Create new components in the `/src/components` directory
+2. Add new pages in the appropriate role directory under `/src/app`
+3. Create or update models in the `/src/models` directory
+
+### Model Structure
+
+- **User**: Authentication and role management
+- **MenuItem**: Food and beverage items
+- **Table**: Restaurant tables and their status
+- **Order**: Customer orders with items and status
+- **Bill**: Payment information for completed orders
+- **Customer**: Customer details and preferences
+- **Counter**: Auto-incrementing counters for order/bill numbers
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Icons provided by [React Icons](https://react-icons.github.io/react-icons/)
+- UI components styled with [TailwindCSS](https://tailwindcss.com/)

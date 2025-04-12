@@ -1,429 +1,277 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { 
-  FaUtensils, 
-  FaShoppingCart, 
-  FaSearch,
-  FaLeaf, 
-  FaFire, 
-  FaStar, 
-  FaPlus,
-  FaMinus,
-  FaUser,
-  FaPhoneAlt,
-  FaArrowLeft
-} from 'react-icons/fa';
+import { useState, useEffect } from 'react';
+import { useGuest } from '@/hooks/useGuests';
+import { FaShoppingCart, FaUtensils, FaSearch, FaSpinner } from 'react-icons/fa';
+import Link from 'next/link';
 
-// Types
-interface MenuItem {
-  id: number;
-  name: string;
-  category: string;
-  price: number;
-  description: string;
-  image: string;
-  isVegetarian: boolean;
-  isSpicy: boolean;
-  isPopular: boolean;
-}
-
-interface GuestInfo {
-  name: string;
-  phone: string;
-}
-
-interface CartItem extends MenuItem {
-  quantity: number;
-}
-
-// Sample menu data
-const menuItems: MenuItem[] = [
-  {
-    id: 1,
-    name: 'Butter Chicken',
-    category: 'Main Course',
-    price: 250,
-    description: 'Tender chicken cooked in a rich and creamy tomato-based sauce.',
-    image: '/images/butter-chicken.jpg',
-    isVegetarian: false,
-    isSpicy: true,
-    isPopular: true
-  },
-  {
-    id: 2,
-    name: 'Paneer Tikka',
-    category: 'Appetizers',
-    price: 180,
-    description: 'Marinated cottage cheese cubes grilled to perfection.',
-    image: '/images/paneer-tikka.jpg',
-    isVegetarian: true,
-    isSpicy: false,
-    isPopular: true
-  },
-  {
-    id: 3,
-    name: 'Vegetable Biryani',
-    category: 'Rice',
-    price: 200,
-    description: 'Fragrant basmati rice cooked with mixed vegetables and aromatic spices.',
-    image: '/images/veg-biryani.jpg',
-    isVegetarian: true,
-    isSpicy: true,
-    isPopular: false
-  },
-  {
-    id: 4,
-    name: 'Chicken Tikka',
-    category: 'Appetizers',
-    price: 220,
-    description: 'Marinated chicken pieces grilled in a tandoor.',
-    image: '/images/chicken-tikka.jpg',
-    isVegetarian: false,
-    isSpicy: true,
-    isPopular: true
-  },
-  {
-    id: 5,
-    name: 'Gulab Jamun',
-    category: 'Desserts',
-    price: 120,
-    description: 'Deep-fried milk solids soaked in sugar syrup.',
-    image: '/images/gulab-jamun.jpg',
-    isVegetarian: true,
-    isSpicy: false,
-    isPopular: true
-  },
-  {
-    id: 6,
-    name: 'Malai Kofta',
-    category: 'Main Course',
-    price: 220,
-    description: 'Potato and paneer dumplings served in a creamy sauce.',
-    image: '/images/malai-kofta.jpg',
-    isVegetarian: true,
-    isSpicy: false,
-    isPopular: false
-  },
-  {
-    id: 7,
-    name: 'Garlic Naan',
-    category: 'Breads',
-    price: 70,
-    description: 'Soft leavened bread topped with garlic and butter.',
-    image: '/images/garlic-naan.jpg',
-    isVegetarian: true,
-    isSpicy: false,
-    isPopular: true
-  },
-  {
-    id: 8,
-    name: 'Tandoori Chicken',
-    category: 'Main Course',
-    price: 300,
-    description: 'Chicken marinated in yogurt and spices, cooked in a tandoor.',
-    image: '/images/tandoori-chicken.jpg',
-    isVegetarian: false,
-    isSpicy: true,
-    isPopular: true
-  }
-];
-
-// Available categories
-const categories = ['All', ...Array.from(new Set(menuItems.map(item => item.category)))];
-
-export default function MenuPage() {
-  const router = useRouter();
-  const [guestInfo, setGuestInfo] = useState<GuestInfo | null>(null);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [vegOnly, setVegOnly] = useState(false);
-
-  // Load guest info from localStorage on component mount
-  useEffect(() => {
-    const storedGuestInfo = localStorage.getItem('guestInfo');
-    if (storedGuestInfo) {
-      setGuestInfo(JSON.parse(storedGuestInfo));
-    } else {
-      // Redirect to guest login if no guest info found
-      router.push('/guest');
-    }
-
-    // Load cart from localStorage if exists
-    const storedCart = localStorage.getItem('guestCart');
-    if (storedCart) {
-      setCart(JSON.parse(storedCart));
-    }
-  }, [router]);
-
-  // Save cart to localStorage whenever it changes
-  useEffect(() => {
-    if (cart.length > 0) {
-      localStorage.setItem('guestCart', JSON.stringify(cart));
-    }
-  }, [cart]);
-
-  // Filter menu items based on search, category, and veg filter
-  const filteredItems = menuItems.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
-    const matchesVegFilter = !vegOnly || item.isVegetarian;
-    
-    return matchesSearch && matchesCategory && matchesVegFilter;
-  });
-
-  // Cart functions
-  const addToCart = (item: MenuItem) => {
-    setCart(prevCart => {
-      const existingItemIndex = prevCart.findIndex(cartItem => cartItem.id === item.id);
-      
-      if (existingItemIndex >= 0) {
-        // Item already in cart, increase quantity
-        return prevCart.map((cartItem, index) => 
-          index === existingItemIndex 
-            ? { ...cartItem, quantity: cartItem.quantity + 1 } 
-            : cartItem
-        );
-      } else {
-        // Item not in cart, add it
-        return [...prevCart, { ...item, quantity: 1 }];
-      }
-    });
-  };
-
-  const removeFromCart = (itemId: number) => {
-    setCart(prevCart => {
-      const existingItemIndex = prevCart.findIndex(item => item.id === itemId);
-      
-      if (existingItemIndex >= 0 && prevCart[existingItemIndex].quantity > 1) {
-        // Decrease quantity if more than 1
-        return prevCart.map((item, index) => 
-          index === existingItemIndex 
-            ? { ...item, quantity: item.quantity - 1 } 
-            : item
-        );
-      } else {
-        // Remove item from cart
-        return prevCart.filter(item => item.id !== itemId);
-      }
-    });
-  };
-
-  // Calculate total items in cart
-  const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
+export default function GuestMenuPage() {
+  const { 
+    menuItems: apiMenuItems, 
+    getMenuItems, 
+    getCategories, 
+    loading, 
+    error, 
+    tableId, 
+    selectTable
+  } = useGuest();
   
-  // Calculate total price
-  const totalPrice = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  const [categories, setCategories] = useState<{_id: string, name: string}[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [cartItems, setCartItems] = useState<{
+    menuItemId: string;
+    name: string;
+    price: number;
+    quantity: number;
+    notes?: string;
+  }[]>([]);
+  
+  // Fetch menu categories and items on mount
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const categoriesData = await getCategories();
+        setCategories(categoriesData);
+        await getMenuItems();
+      } catch (err) {
+        console.error("Failed to fetch initial data", err);
+      }
+    }
+    fetchData();
+  }, [getCategories, getMenuItems]);
+  
+  // Load cart from localStorage
+  useEffect(() => {
+    const storedCart = localStorage.getItem('guest_cart');
+    if (storedCart) {
+      try {
+        setCartItems(JSON.parse(storedCart));
+      } catch (err) {
+        console.error('Failed to parse cart data', err);
+      }
+    }
+  }, []);
+  
+  // Save cart to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('guest_cart', JSON.stringify(cartItems));
+  }, [cartItems]);
+  
+  // Handle category selection
+  const handleCategorySelect = (categoryId: string) => {
+    setSelectedCategory(categoryId);
+  };
+  
+  // Handle search
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+  };
+  
+  // Add item to cart
+  const addToCart = (menuItem: {
+    _id: string;
+    name: string;
+    price: number;
+    available: boolean;
+  }) => {
+    const existingItemIndex = cartItems.findIndex(item => item.menuItemId === menuItem._id);
+    
+    if (existingItemIndex >= 0) {
+      // Item exists, update quantity
+      const updatedItems = [...cartItems];
+      updatedItems[existingItemIndex].quantity += 1;
+      setCartItems(updatedItems);
+    } else {
+      // Add new item to cart
+      setCartItems([
+        ...cartItems,
+        {
+          menuItemId: menuItem._id,
+          name: menuItem.name,
+          price: menuItem.price,
+          quantity: 1,
+          notes: ''
+        }
+      ]);
+    }
+  };
+  
+  // Calculate total
+  const calculateTotal = () => {
+    return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+  };
+  
+  // Filter displayed menu items based on search term and category
+  const filteredMenuItems = apiMenuItems
+    .filter(item => 
+      (selectedCategory ? item.category === selectedCategory : true) &&
+      (searchTerm ? 
+        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.description.toLowerCase().includes(searchTerm.toLowerCase())
+      : true)
+    );
+  
+  // Mock table selection for demo
+  useEffect(() => {
+    if (!tableId) {
+      selectTable('table123'); // For demo purposes
+    }
+  }, [tableId, selectTable]);
   
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top navigation bar */}
-      <nav className="bg-white shadow-md py-4 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <button 
-                onClick={() => router.push('/guest')}
-                className="text-gray-600 hover:text-amber-500 mr-3"
-              >
-                <FaArrowLeft size={18} />
-              </button>
-              <div className="text-xl font-semibold text-gray-800 flex items-center">
-                <FaUtensils className="text-amber-500 mr-2" />
-                <span>Our Menu</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              {guestInfo && (
-                <div className="hidden md:flex items-center text-sm text-gray-600">
-                  <div className="flex items-center mr-4">
-                    <FaUser className="text-gray-400 mr-1" />
-                    <span>{guestInfo.name}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <FaPhoneAlt className="text-gray-400 mr-1" />
-                    <span>{guestInfo.phone}</span>
-                  </div>
-                </div>
-              )}
-              
-              <button 
-                onClick={() => router.push('/guest/cart')}
-                className="relative bg-amber-500 text-white p-2 rounded-full hover:bg-amber-600"
-              >
-                <FaShoppingCart size={18} />
-                {cartItemCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-                    {cartItemCount}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gray-100">
+      {/* Header */}
+      <header className="bg-indigo-600 text-white p-4 shadow-md">
+        <div className="container mx-auto flex justify-between items-center">
+          <h1 className="text-2xl font-bold flex items-center">
+            <FaUtensils className="mr-2" /> Our Menu
+          </h1>
+          <Link href="/guest/cart" className="relative">
+            <FaShoppingCart className="text-2xl" />
+            {cartItems.length > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                {cartItems.reduce((total, item) => total + item.quantity, 0)}
+              </span>
+            )}
+          </Link>
         </div>
-      </nav>
+      </header>
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Search and filter section */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-            <div className="relative md:w-64">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FaSearch className="text-gray-400" />
-              </div>
+      {/* Search & Filters */}
+      <div className="bg-white shadow-md">
+        <div className="container mx-auto p-4">
+          <form onSubmit={handleSearch} className="mb-4">
+            <div className="relative">
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
-                placeholder="Search menu..."
+                placeholder="Search menu items..."
+                className="w-full p-2 pl-10 pr-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="vegOnly"
-                  checked={vegOnly}
-                  onChange={(e) => setVegOnly(e.target.checked)}
-                  className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded"
-                />
-                <label htmlFor="vegOnly" className="ml-2 text-sm text-gray-700 flex items-center">
-                  <FaLeaf className="text-green-500 mr-1" />
-                  Vegetarian Only
-                </label>
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <FaSearch className="text-gray-400" />
               </div>
             </div>
-          </div>
-        </div>
-        
-        {/* Category tabs */}
-        <div className="mb-6 overflow-x-auto">
-          <div className="flex space-x-2 min-w-max">
-            {categories.map(category => (
+          </form>
+          
+          <div className="overflow-x-auto">
+            <div className="flex space-x-2 pb-2">
               <button
-                key={category}
-                onClick={() => setActiveCategory(category)}
-                className={`px-4 py-2 rounded-full text-sm font-medium ${
-                  activeCategory === category
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                onClick={() => handleCategorySelect('')}
+                className={`px-4 py-2 rounded-full whitespace-nowrap ${
+                  selectedCategory === '' 
+                    ? 'bg-indigo-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
-                {category}
+                All Items
               </button>
-            ))}
-          </div>
-        </div>
-        
-        {/* Menu items grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredItems.length > 0 ? (
-            filteredItems.map((item) => (
-              <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                <div className="h-48 bg-gray-200 overflow-hidden">
-                  <div 
-                    className="h-full w-full bg-cover bg-center"
-                    style={{ backgroundImage: `url(${item.image || '/images/placeholder.jpg'})` }}
-                  ></div>
-                </div>
-                
-                <div className="p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-lg font-semibold text-gray-800">{item.name}</h3>
-                    <span className="text-amber-600 font-semibold">₹{item.price.toFixed(2)}</span>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                      {item.category}
-                    </span>
-                    
-                    {item.isVegetarian && (
-                      <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                        <FaLeaf className="mr-1" />
-                        Veg
-                      </span>
-                    )}
-                    
-                    {item.isSpicy && (
-                      <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                        <FaFire className="mr-1" />
-                        Spicy
-                      </span>
-                    )}
-                    
-                    {item.isPopular && (
-                      <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-100 text-amber-800">
-                        <FaStar className="mr-1" />
-                        Popular
-                      </span>
-                    )}
-                  </div>
-                  
-                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">{item.description}</p>
-                  
-                  <div className="flex justify-between items-center">
-                    {cart.some(cartItem => cartItem.id === item.id) ? (
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => removeFromCart(item.id)}
-                          className="bg-gray-200 text-gray-700 p-2 rounded-l hover:bg-gray-300"
-                        >
-                          <FaMinus size={12} />
-                        </button>
-                        <span className="bg-gray-100 px-4 py-2">
-                          {cart.find(cartItem => cartItem.id === item.id)?.quantity || 0}
-                        </span>
-                        <button
-                          onClick={() => addToCart(item)}
-                          className="bg-gray-200 text-gray-700 p-2 rounded-r hover:bg-gray-300"
-                        >
-                          <FaPlus size={12} />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => addToCart(item)}
-                        className="bg-amber-500 text-white px-4 py-2 rounded flex items-center hover:bg-amber-600"
-                      >
-                        <FaPlus className="mr-2" size={12} />
-                        Add to Cart
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="col-span-full text-center p-6 bg-white rounded-lg shadow-md">
-              <p className="text-gray-500">No menu items found matching your filters.</p>
+              {categories.map(category => (
+                <button
+                  key={category._id}
+                  onClick={() => handleCategorySelect(category._id)}
+                  className={`px-4 py-2 rounded-full whitespace-nowrap ${
+                    selectedCategory === category._id 
+                      ? 'bg-indigo-600 text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  {category.name}
+                </button>
+              ))}
             </div>
-          )}
+          </div>
         </div>
       </div>
       
-      {/* Cart summary bar - visible when items in cart */}
-      {cart.length > 0 && (
-        <div className="fixed bottom-0 inset-x-0 bg-white shadow-md border-t border-gray-200 py-4 px-4">
-          <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <div>
-              <p className="font-semibold text-gray-800">{cartItemCount} item{cartItemCount !== 1 ? 's' : ''} in cart</p>
-              <p className="text-lg font-bold text-amber-600">₹{totalPrice.toFixed(2)}</p>
+      {/* Loading state */}
+      {loading && (
+        <div className="flex justify-center items-center h-64">
+          <FaSpinner className="animate-spin text-indigo-600 text-3xl" />
+        </div>
+      )}
+      
+      {/* Error state */}
+      {error && (
+        <div className="container mx-auto p-4">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            <p>Failed to load menu items. Please try again.</p>
+          </div>
+        </div>
+      )}
+      
+      {/* Menu items */}
+      <div className="container mx-auto p-4">
+        {!loading && !error && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredMenuItems.map(item => (
+              <div key={item._id} className="bg-white rounded-lg shadow-md overflow-hidden">
+                {item.image && (
+                  <div 
+                    className="h-48 bg-cover bg-center"
+                    style={{ backgroundImage: `url(${item.image})` }}
+                  ></div>
+                )}
+                
+                <div className="p-4">
+                  <div className="flex justify-between items-start">
+                    <h3 className="text-lg font-semibold">{item.name}</h3>
+                    <span className="font-bold text-indigo-600">₹{item.price.toFixed(2)}</span>
+                  </div>
+                  
+                  <p className="text-gray-600 text-sm mt-1 line-clamp-2">{item.description}</p>
+                  
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {item.isVegetarian && (
+                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Vegetarian</span>
+                    )}
+                    {item.isVegan && (
+                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Vegan</span>
+                    )}
+                    {item.isGlutenFree && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">Gluten Free</span>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between items-center mt-4">
+                    <span className="text-sm text-gray-500">Prep time: {item.preparationTime} mins</span>
+                    <button 
+                      onClick={() => addToCart(item)}
+                      disabled={!item.available}
+                      className={`px-4 py-2 rounded-md text-white ${
+                        item.available 
+                          ? 'bg-indigo-600 hover:bg-indigo-700' 
+                          : 'bg-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {item.available ? 'Add to Order' : 'Not Available'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      
+      {/* Floating cart preview */}
+      {cartItems.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg p-4">
+          <div className="container mx-auto">
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="font-semibold">{cartItems.reduce((total, item) => total + item.quantity, 0)} item(s)</span>
+                <span className="ml-2 font-bold">₹{calculateTotal().toFixed(2)}</span>
+              </div>
+              <Link 
+                href="/guest/cart"
+                className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700"
+              >
+                View Order
+              </Link>
             </div>
-            
-            <button
-              onClick={() => router.push('/guest/cart')}
-              className="bg-amber-500 text-white px-6 py-2 rounded-md font-medium flex items-center hover:bg-amber-600"
-            >
-              <FaShoppingCart className="mr-2" />
-              View Cart
-            </button>
           </div>
         </div>
       )}
