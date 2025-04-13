@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import WaiterSidebar from '@/components/WaiterSidebar';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { 
@@ -13,7 +13,8 @@ import { signOut, useSession } from 'next-auth/react';
 // Store scroll positions for different routes
 const scrollPositions = new Map<string, number>();
 
-export default function WaiterLayout({
+// Create a component for the content that uses useSearchParams
+function WaiterLayoutContent({
   children,
 }: {
   children: React.ReactNode
@@ -172,5 +173,25 @@ export default function WaiterLayout({
         />
       )}
     </div>
+  );
+}
+
+// Main layout component with Suspense boundary
+export default function WaiterLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <WaiterLayoutContent children={children} />
+    </Suspense>
   );
 } 

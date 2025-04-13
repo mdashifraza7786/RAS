@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import ChefSidebar from '@/components/ChefSidebar';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { 
@@ -13,7 +13,8 @@ import { signOut, useSession } from 'next-auth/react';
 // Store scroll positions for different routes
 const scrollPositions = new Map<string, number>();
 
-export default function ChefLayout({
+// Create a separate component for parts that use useSearchParams
+function ChefLayoutContent({
   children,
 }: {
   children: React.ReactNode
@@ -172,5 +173,25 @@ export default function ChefLayout({
         />
       )}
     </div>
+  );
+}
+
+// Main layout component with Suspense boundary
+export default function ChefLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <ChefLayoutContent children={children} />
+    </Suspense>
   );
 } 
