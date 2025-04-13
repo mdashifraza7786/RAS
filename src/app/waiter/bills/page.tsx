@@ -1,261 +1,237 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import useBills from '@/hooks/useBills';
-import { 
-  FaFileInvoiceDollar, 
-  FaSearch, 
-  FaSyncAlt, 
-  FaEye, 
-  FaCheck, 
-  FaSpinner,
-  FaTimesCircle
-} from 'react-icons/fa';
+import { useRouter } from 'next/navigation';
+import axios from 'axios';
+import { FaReceipt, FaPrint, FaCheck, FaTimes, FaSearch } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
 
-interface Bill {
+// Define interfaces for type safety
+interface OrderItem {
   _id: string;
-  billNumber: number;
-  table?: { name: string } | string;
-  customerName?: string;
-  total: number;
+  name: string;
+  price: number;
+  quantity: number;
+  status: string;
+}
+
+interface OrderTable {
+  _id: string;
+  number: number;
+  name?: string;
+}
+
+interface Order {
+  _id: string;
+  orderNumber: number;
+  table?: OrderTable;
+  items: OrderItem[];
+  status: string;
   subtotal: number;
-  tip: number;
+  tax: number;
+  total: number;
   paymentStatus: string;
   paymentMethod?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export default function BillsPage() {
-  const { getAllBills } = useBills();
-  const [bills, setBills] = useState<Bill[]>([]);
-  const [filteredBills, setFilteredBills] = useState<Bill[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
-    fetchBills();
+    fetchOrders();
   }, []);
 
-  useEffect(() => {
-    filterBills();
-  }, [searchTerm, statusFilter, bills]);
-
-  const fetchBills = async () => {
+  const fetchOrders = async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-      const data = await getAllBills();
-      setBills(data);
-      setFilteredBills(data);
-    } catch (err) {
-      console.error('Failed to fetch bills:', err);
-      setError('Failed to load bills. Please try again.');
+      setLoading(true);
+      // Get all orders that are served or completed
+      const response = await axios.get('/api/waiter/orders');
+      const filteredOrders = response.data.orders.filter(
+        (order: Order) => order.status === 'served' || order.status === 'completed'
+      );
+      setOrders(filteredOrders);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const filterBills = () => {
-    let result = [...bills];
-    
-    // Filter by status
-    if (statusFilter !== 'all') {
-      result = result.filter(bill => bill.paymentStatus === statusFilter);
+  const markAsPaid = async (orderId: string, paymentMethod: string = 'cash') => {
+    try {
+      // Update order payment status
+      await axios.patch(`/api/waiter/orders/${orderId}/status`, {
+        paymentStatus: 'paid',
+        paymentMethod
+      });
+      
+      // Update local state
+      setOrders(orders.map(order => 
+        order._id === orderId 
+          ? { ...order, paymentStatus: 'paid', paymentMethod } 
+          : order
+      ));
+      
+      toast.success('Payment completed and table marked available');
+    } catch (error) {
+      console.error('Error marking order as paid:', error);
+      toast.error('Failed to process payment');
+    }
+  };
+
+  const printReceipt = (order: Order) => {
+    router.push(`/waiter/bills/print?orderId=${order._id}`);
+  };
+
+  const generateBill = (order: Order) => {
+    try {
+      // Create a bill for the order
+      axios.post('/api/waiter/bills', {
+        order: order._id,
+        subtotal: order.subtotal,
+        tax: order.tax,
+        total: order.total,
+        paymentMethod: 'cash',
+        paymentStatus: 'unpaid'  // Using 'unpaid' which is valid in the schema
+      }).then(() => {
+        // Once bill is created, redirect to bill view/edit page
+        router.push(`/waiter/bills/print?orderId=${order._id}`);
+      }).catch(error => {
+        console.error('Error creating bill:', error);
+        // If bill creation fails, still go to print page
+        router.push(`/waiter/bills/print?orderId=${order._id}`);
+      });
+    } catch (error) {
+      console.error('Error initiating bill creation:', error);
+      // If there's any error, still try to go to the print page
+      router.push(`/waiter/bills/print?orderId=${order._id}`);
+    }
+  };
+
+  const filteredOrders = orders.filter(order => {
+    // Filter by payment status if not "all"
+    if (statusFilter !== 'all' && order.paymentStatus !== statusFilter) {
+      return false;
     }
     
-    // Filter by search term (bill number, table, customer)
-    if (searchTerm.trim() !== '') {
-      const searchLower = searchTerm.toLowerCase().trim();
-      result = result.filter(bill => 
-        (bill.billNumber && bill.billNumber.toString().includes(searchLower)) ||
-        (bill.table && typeof bill.table !== 'string' && bill.table.name && bill.table.name.toLowerCase().includes(searchLower)) ||
-        (bill.customerName && bill.customerName.toLowerCase().includes(searchLower))
+    // Search by order number, table number, or total
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      return (
+        order.orderNumber.toString().includes(term) ||
+        (order.table?.number.toString() || '').includes(term)
       );
     }
     
-    // Sort by date (newest first)
-    result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    
-    setFilteredBills(result);
-  };
-
-  // Get status badge styling
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            <FaCheck className="mr-1" /> Paid
-          </span>
-        );
-      case 'pending':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-            <FaTimesCircle className="mr-1" /> Pending
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-            {status}
-          </span>
-        );
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="p-6 flex justify-center items-center h-screen">
-        <FaSpinner className="animate-spin h-12 w-12 text-blue-500" />
-      </div>
-    );
-  }
+    return true;
+  });
 
   return (
     <div className="p-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-        <h1 className="text-2xl font-bold flex items-center">
-          <FaFileInvoiceDollar className="mr-2" />
-          Bills
-        </h1>
-        
-        <div className="mt-4 md:mt-0 flex flex-col sm:flex-row gap-3">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <FaSearch className="text-gray-400" />
-            </div>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search bills..."
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="paid">Paid</option>
-          </select>
-          
-          <button 
-            onClick={fetchBills} 
-            className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 flex items-center justify-center"
-          >
-            <FaSyncAlt className="mr-2" />
-            Refresh
-          </button>
+      <h1 className="text-2xl font-bold mb-6">Billing & Receipts</h1>
+      
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <FaSearch className="absolute left-3 top-3 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by order # or table #"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 p-2 border border-gray-300 rounded w-full"
+          />
         </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="p-2 border border-gray-300 rounded min-w-[150px]"
+        >
+          <option value="all">All Orders</option>
+          <option value="unpaid">Unpaid Only</option>
+          <option value="paid">Paid Only</option>
+        </select>
       </div>
       
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
+      {loading ? (
+        <div className="flex justify-center items-center p-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
-      )}
-      
-      {!isLoading && filteredBills.length === 0 ? (
-        <div className="bg-gray-50 rounded-lg p-6 text-center">
-          <p className="text-gray-500">No bills found. Try changing your filters or refresh.</p>
-          <button 
-            onClick={fetchBills}
-            className="mt-4 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
-          >
-            <FaSyncAlt className="inline mr-2" />
-            Refresh
-          </button>
+      ) : filteredOrders.length === 0 ? (
+        <div className="bg-gray-50 p-8 rounded-lg text-center">
+          <FaReceipt className="mx-auto text-gray-400 text-4xl mb-4" />
+          <h3 className="text-xl font-medium text-gray-600 mb-2">No Orders Found</h3>
+          <p className="text-gray-500">No orders match your current filters</p>
         </div>
       ) : (
-        <div className="bg-white shadow overflow-hidden rounded-lg">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Bill #
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Table
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredBills.map((bill) => (
-                  <tr key={bill._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        #{bill.billNumber}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
-                        {typeof bill.table === 'string' 
-                          ? 'Table' 
-                          : bill.table?.name || 'Unknown'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
-                        {new Date(bill.createdAt).toLocaleDateString()}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {new Date(bill.createdAt).toLocaleTimeString()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        ₹{bill.total.toFixed(2)}
-                      </div>
-                      {bill.tip > 0 && (
-                        <div className="text-xs text-gray-500">
-                          Tip: ₹{bill.tip.toFixed(2)}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(bill.paymentStatus)}
-                      {bill.paymentMethod && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          via {bill.paymentMethod}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link 
-                        href={`/waiter/bills/${bill._id}`}
-                        className="inline-flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredOrders.map(order => (
+            <div key={order._id} className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="p-4 border-b border-gray-200">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium">Order #{order.orderNumber}</h3>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    order.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {order.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}
+                  </span>
+                </div>
+                <p className="text-gray-600 mt-1">Table #{order.table?.number || 'N/A'}</p>
+              </div>
+              
+              <div className="p-4 bg-gray-50">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Subtotal:</span>
+                    <span>₹{order.subtotal?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Tax:</span>
+                    <span>₹{order.tax?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-gray-200 font-medium">
+                    <span>Total:</span>
+                    <span>₹{order.total?.toFixed(2) || '0.00'}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-4 border-t border-gray-200">
+                <div className="grid grid-cols-2 gap-3">
+                  {order.paymentStatus !== 'paid' ? (
+                    <>
+                      <button
+                        onClick={() => markAsPaid(order._id, 'cash')}
+                        className="px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 flex items-center justify-center"
                       >
-                        <FaEye className="mr-1" />
-                        <span>
-                          {bill.paymentStatus === 'paid' ? 'View' : 'Process'}
-                        </span>
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        <FaCheck className="mr-1" /> Mark as Paid
+                      </button>
+                      <button
+                        onClick={() => generateBill(order)}
+                        className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 flex items-center justify-center"
+                      >
+                        <FaReceipt className="mr-1" /> Generate Bill
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => printReceipt(order)}
+                        className="px-3 py-2 bg-gray-600 text-white rounded-md text-sm hover:bg-gray-700 flex items-center justify-center col-span-2"
+                      >
+                        <FaPrint className="mr-1" /> Print Receipt
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

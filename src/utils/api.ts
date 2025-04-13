@@ -2,7 +2,7 @@
  * Utility functions for API requests
  */
 
-type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 interface ApiOptions {
   method?: RequestMethod;
@@ -111,4 +111,27 @@ export const customerApi = {
  */
 export const statsApi = {
   get: () => fetchApi<any>('stats')
+};
+
+/**
+ * Waiter API requests
+ */
+export const waiterApi = {
+  getOrders: (params?: URLSearchParams) => {
+    const queryString = params ? `?${params.toString()}` : '';
+    return fetchApi<any>(`waiter/orders${queryString}`);
+  },
+  getOrderById: (id: string) => fetchApi<any>(`waiter/orders/${id}`),
+  createOrder: (data: any) => fetchApi<any>('waiter/orders', { method: 'POST', body: data }),
+  updateOrder: (id: string, data: any) => fetchApi<any>(`waiter/orders/${id}`, { method: 'PUT', body: data }),
+  updateOrderStatus: (id: string, status: string) => 
+    fetchApi<any>(`waiter/orders/${id}/status`, { method: 'PATCH', body: { status } }),
+  addItems: (id: string, items: any[]) => 
+    fetchApi<any>(`waiter/orders/${id}/items`, { method: 'POST', body: { items } }),
+  updateItemStatus: (orderId: string, itemId: string, status: string) =>
+    fetchApi<any>(`waiter/orders/${orderId}/items/${itemId}/status`, 
+      { method: 'PUT', body: { status } }),
+  removeItem: (orderId: string, itemId: string) => 
+    fetchApi<any>(`waiter/orders/${orderId}/removeItem`, 
+      { method: 'DELETE', body: { itemId } })
 }; 

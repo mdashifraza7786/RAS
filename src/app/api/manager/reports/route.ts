@@ -516,7 +516,10 @@ async function generateStaffReport(): Promise<StaffSummary> {
     createdAt: {
       $gte: thirtyDaysAgo
     }
-  }).populate('assignedTo').lean();
+  }).populate({
+    path: 'assignedTo',
+    strictPopulate: false // Set strictPopulate to false to avoid errors
+  }).lean();
   
   // Create a map to track staff performance
   const staffPerformanceMap = new Map<string, {

@@ -176,15 +176,15 @@ const StatCard = ({ title, value, icon, change, changeType = 'neutral' }: StatCa
         <div>
           <h3 className="text-lg font-medium text-gray-800 mb-2">{title}</h3>
           <p className="text-3xl font-bold text-gray-900">{value}</p>
-          {change && (
+      {change && (
             <p className={`mt-1 text-sm ${
               changeType === 'positive' ? 'text-green-600' : 
               changeType === 'negative' ? 'text-red-600' : 
               'text-gray-500'
             }`}>
-              {change}
-            </p>
-          )}
+          {change}
+        </p>
+      )}
         </div>
         <div className="text-2xl text-indigo-500">
           {icon}
@@ -413,7 +413,7 @@ export default function PaymentsPage() {
       
       {/* Payments Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <StatCard 
+          <StatCard 
           title="Total Revenue" 
           value={getStatValue('totalRevenue')}
           icon={<FaMoneyBillWave />}
@@ -531,7 +531,7 @@ export default function PaymentsPage() {
                         <div class="header">
                           <h1>Payment Transactions Report</h1>
                           <p>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
-                        </div>
+            </div>
                         
                         <div class="filters">
                           <strong>Filters:</strong> 
@@ -539,15 +539,15 @@ export default function PaymentsPage() {
                           <span>Payment Method: ${selectedMethod}</span> | 
                           <span>Status: ${selectedStatus}</span>
                           ${searchQuery ? `| <span>Search: "${searchQuery}"</span>` : ''}
-                        </div>
+          </div>
                         
                         <div class="summary">
                           <h3>Summary</h3>
                           <div><strong>Total Revenue:</strong> ${formatCurrency(paymentStats.totalRevenue)}</div>
                           <div><strong>Transactions:</strong> ${paymentStats.transactionCount}</div>
                           <div><strong>Average Order Value:</strong> ${formatCurrency(paymentStats.averageOrderValue)}</div>
-                        </div>
-                        
+        </div>
+        
                         <table>
                           <thead>
                             <tr>
@@ -573,7 +573,7 @@ export default function PaymentsPage() {
                         
                         <div class="footer">
                           <p>Generated at ${new Date().toLocaleString()}</p>
-                        </div>
+          </div>
                       </div>
                     </body>
                   </html>
@@ -640,7 +640,7 @@ export default function PaymentsPage() {
                       <div className="inline-block w-6 h-6 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                     </div>
                     <p className="mt-2">Loading payments...</p>
-                  </td>
+                    </td>
                 </tr>
               ) : filteredPayments.length > 0 ? (
                 filteredPayments.map((payment) => (
@@ -656,10 +656,10 @@ export default function PaymentsPage() {
                             <div className="text-xs text-gray-500">ID: {payment._id.substring(0, 8)}</div>
                           </div>
                         </div>
-                      </td>
+                    </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(payment.paidAt)}
-                      </td>
+                    </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{formatCurrency(payment.total)}</div>
                       </td>
@@ -667,9 +667,9 @@ export default function PaymentsPage() {
                         <div className="flex items-center text-sm text-gray-500">
                           {getMethodIcon(payment.paymentMethod)}
                           {payment.paymentMethod}
-                        </div>
+                      </div>
                         {payment.cardInfo && <div className="text-xs text-gray-400">{payment.cardInfo}</div>}
-                      </td>
+                    </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeStyles(payment.paymentStatus)}`}>
                           <span className="flex items-center">
@@ -677,7 +677,7 @@ export default function PaymentsPage() {
                             {payment.paymentStatus}
                           </span>
                         </span>
-                      </td>
+                    </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-3">
                           <button 
@@ -690,9 +690,9 @@ export default function PaymentsPage() {
                             {expandedPayment === payment._id ? 'Hide Details' : 'View Details'}
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                    
+                    </td>
+                  </tr>
+                  
                     {/* Expanded details row */}
                     {expandedPayment === payment._id && (
                       <tr>
@@ -702,26 +702,26 @@ export default function PaymentsPage() {
                               <h4 className="text-sm font-semibold text-gray-700 mb-2">Order Details</h4>
                               <p className="text-sm text-gray-600">Order #: {payment.order.orderNumber}</p>
                               <p className="text-sm text-gray-600">Items: {payment.order.items?.length || 0}</p>
-                            </div>
+                              </div>
                             
                             <div>
                               <h4 className="text-sm font-semibold text-gray-700 mb-2">Payment Information</h4>
                               <p className="text-sm text-gray-600">Method: {payment.paymentMethod}</p>
                               <p className="text-sm text-gray-600">Status: {payment.paymentStatus}</p>
                               {payment.cardInfo && <p className="text-sm text-gray-600">Card Info: {payment.cardInfo}</p>}
-                            </div>
-                            
+                          </div>
+                          
                             <div>
                               <h4 className="text-sm font-semibold text-gray-700 mb-2">Actions</h4>
                               <div className="flex space-x-2">
                                 {payment.paymentStatus !== 'paid' && (
-                                  <button 
+                            <button 
                                     className="px-3 py-1 bg-green-100 text-green-800 rounded hover:bg-green-200"
                                     onClick={() => updatePaymentStatus(payment._id, 'paid')}
                                   >
                                     Mark as Paid
-                                  </button>
-                                )}
+                              </button>
+                            )}
                                 
                                 <button 
                                   className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded hover:bg-indigo-200"
@@ -878,13 +878,13 @@ export default function PaymentsPage() {
                                               <p>Order #: ${payment.order.orderNumber}</p>
                                               <p>Date: ${formatDate(payment.paidAt || payment.createdAt)}</p>
                                               <p>Receipt #: ${payment._id.substring(0, 8)}</p>
-                                            </div>
+                          </div>
                                             
                                             <div class="details">
                                               <p><span>Payment Method:</span> <span>${payment.paymentMethod}</span></p>
                                               <p><span>Status:</span> <span>${payment.paymentStatus}</span></p>
                                               ${payment.cardInfo ? `<p><span>Card Info:</span> <span>${payment.cardInfo}</span></p>` : ''}
-                                            </div>
+                        </div>
                                             
                                             <table class="items">
                                               <thead>
@@ -892,7 +892,7 @@ export default function PaymentsPage() {
                                                   <th class="item-qty">Qty</th>
                                                   <th>Item</th>
                                                   <th class="item-price">Price</th>
-                                                </tr>
+                </tr>
                                               </thead>
                                               <tbody>
                                                 ${orderItems.length > 0 
@@ -906,8 +906,8 @@ export default function PaymentsPage() {
                                                   `).join('') 
                                                   : `<tr><td colspan="3" style="text-align:center;padding:10px;">Items not available</td></tr>`
                                                 }
-                                              </tbody>
-                                            </table>
+            </tbody>
+          </table>
                                             
                                             <div class="totals">
                                               <p><span>Subtotal:</span> <span>${formatCurrency(payment.subtotal || 0)}</span></p>
@@ -915,15 +915,15 @@ export default function PaymentsPage() {
                                               ${payment.tip && payment.tip > 0 ? `<p><span>Tip:</span> <span>${formatCurrency(payment.tip)}</span></p>` : ''}
                                               ${payment.discount && payment.discount > 0 ? `<p><span>Discount:</span> <span>-${formatCurrency(payment.discount)}</span></p>` : ''}
                                               <p class="grand-total"><span>TOTAL:</span> <span>${formatCurrency(payment.total)}</span></p>
-                                            </div>
-                                            
+      </div>
+      
                                             <div class="footer">
                                               <p>Thank you for dining with us!</p>
                                               <p>Please visit again soon</p>
                                               ${payment.notes ? `<p>Note: ${payment.notes}</p>` : ''}
                                               <p>www.yourrestaurant.com</p>
-                                            </div>
-                                          </div>
+        </div>
+        </div>
                                         </body>
                                       </html>
                                     `;
@@ -949,17 +949,17 @@ export default function PaymentsPage() {
                                   }}
                                 >
                                   Print Receipt
-                                </button>
-                              </div>
-                              
+              </button>
+            </div>
+            
                               {payment.notes && (
                                 <div className="mt-2">
                                   <h4 className="text-sm font-semibold text-gray-700 mb-1">Notes</h4>
                                   <p className="text-sm text-gray-600">{payment.notes}</p>
-                                </div>
+                  </div>
                               )}
-                            </div>
-                          </div>
+                </div>
+                </div>
                         </td>
                       </tr>
                     )}
@@ -981,19 +981,19 @@ export default function PaymentsPage() {
                     ) : (
                       'No payment records found. Try adjusting your filters.'
                     )}
-                  </td>
-                </tr>
+                        </td>
+                      </tr>
               )}
             </tbody>
-          </table>
-        </div>
-        
+                  </table>
+              </div>
+              
         {/* Pagination */}
         {filteredPayments.length > 0 && pagination.pages > 1 && (
           <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
             <div className="text-sm text-gray-700">
               Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of <span className="font-medium">{pagination.total}</span> payments
-            </div>
+                </div>
             <div className="flex space-x-2">
               <button 
                 className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 disabled:opacity-50"
@@ -1009,10 +1009,10 @@ export default function PaymentsPage() {
                 onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
               >
                 Next
-              </button>
-            </div>
+                  </button>
           </div>
-        )}
+        </div>
+      )}
       </div>
     </div>
   );

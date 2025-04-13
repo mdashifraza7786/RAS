@@ -1,141 +1,104 @@
 'use client';
 
-import React, { useState } from 'react';
-import { FaArrowLeft, FaReceipt, FaTimes, FaCheck, FaPrint, FaWhatsapp, FaEnvelope } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { FaArrowLeft, FaReceipt, FaTimes, FaCheck, FaPrint, FaWhatsapp, FaEnvelope, FaSpinner } from 'react-icons/fa';
 import Link from 'next/link';
+import { toast } from 'react-hot-toast';
+import useBills from '@/hooks/useBills';
+import axios from 'axios';
 
 // Types
-interface Table {
-  id: number;
-  name: string;
-  status: 'available' | 'occupied' | 'reserved' | 'cleaning';
-  capacity: number;
-}
-
 interface OrderItem {
-  id: number;
+  _id: string;
   name: string;
   price: number;
   quantity: number;
+  status: string;
+  notes?: string;
 }
 
-interface OrderSummary {
-  id: number;
-  tableId: number;
-  tableName: string;
+interface Order {
+  _id: string;
+  orderNumber: number;
   items: OrderItem[];
-  customerName: string;
-  orderTime: string;
-  status: 'active' | 'completed' | 'cancelled';
+  table: {
+    _id: string;
+    number: number;
+    name: string;
+  };
+  status: string;
+  subtotal: number;
+  tax: number;
   total: number;
+  paymentStatus: string;
+  createdAt: string;
+  customerCount?: number;
 }
-
-// Sample data
-const tables: Table[] = [
-  { id: 1, name: 'Table 1', status: 'occupied', capacity: 2 },
-  { id: 3, name: 'Table 3', status: 'occupied', capacity: 4 },
-  { id: 7, name: 'Table 7', status: 'occupied', capacity: 6 },
-  { id: 12, name: 'Table 12', status: 'occupied', capacity: 8 },
-];
-
-const activeOrders: OrderSummary[] = [
-  {
-    id: 1042,
-    tableId: 1,
-    tableName: 'Table 1',
-    items: [
-      { id: 1, name: 'Butter Chicken', price: 350, quantity: 1 },
-      { id: 2, name: 'Naan', price: 50, quantity: 2 },
-      { id: 3, name: 'Jeera Rice', price: 180, quantity: 1 }
-    ],
-    customerName: 'Rahul Sharma',
-    orderTime: '2023-04-02T12:35:00',
-    status: 'active',
-    total: 630
-  },
-  {
-    id: 1041,
-    tableId: 3,
-    tableName: 'Table 3',
-    items: [
-      { id: 4, name: 'Paneer Tikka', price: 280, quantity: 1 },
-      { id: 5, name: 'Veg Pulao', price: 220, quantity: 1 },
-      { id: 6, name: 'Gulab Jamun', price: 120, quantity: 2 }
-    ],
-    customerName: 'Priya Patel',
-    orderTime: '2023-04-02T12:15:00',
-    status: 'active',
-    total: 740
-  },
-  {
-    id: 1040,
-    tableId: 7,
-    tableName: 'Table 7',
-    items: [
-      { id: 7, name: 'Masala Dosa', price: 180, quantity: 2 },
-      { id: 8, name: 'Filter Coffee', price: 80, quantity: 2 },
-    ],
-    customerName: 'Arun Singh',
-    orderTime: '2023-04-02T12:05:00',
-    status: 'active',
-    total: 520
-  },
-  {
-    id: 1039,
-    tableId: 12,
-    tableName: 'Table 12',
-    items: [
-      { id: 9, name: 'Chicken Biryani', price: 300, quantity: 3 },
-      { id: 10, name: 'Raita', price: 60, quantity: 1 },
-      { id: 11, name: 'Cold Drink', price: 60, quantity: 3 }
-    ],
-    customerName: 'Family Reservation',
-    orderTime: '2023-04-02T11:45:00',
-    status: 'active',
-    total: 1080
-  }
-];
 
 // Component
-export default function ProcessPaymentPage() {
-  const [selectedOrder, setSelectedOrder] = useState<OrderSummary | null>(null);
+export default function CreateBillPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get('orderId');
+  const { createBill } = useBills();
+  
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi'>('cash');
   const [tipAmount, setTipAmount] = useState<number>(0);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [showReceipt, setShowReceipt] = useState<boolean>(false);
-  const [customerEmail, setCustomerEmail] = useState<string>('');
+  const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [billGenerated, setBillGenerated] = useState(false);
+  const [generatedBill, setGeneratedBill] = useState<any>(null);
+  
+  // Fetch order details
+  useEffect(() => {
+    if (!orderId) {
+      setError('No order ID provided');
+      setLoading(false);
+      return;
+    }
+    
+    const fetchOrderDetails = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(`/api/waiter/orders/${orderId}`);
+        setOrder(response.data);
+        
+        // If order has customer details, pre-fill them
+        if (response.data.customerName) {
+          setCustomerName(response.data.customerName);
+        }
+        
+        if (response.data.customerPhone) {
+          setCustomerPhone(response.data.customerPhone);
+        }
+      } catch (err) {
+        console.error('Error fetching order details:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load order details');
+        toast.error('Could not load order details');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchOrderDetails();
+  }, [orderId]);
   
   // Calculate final amount
   const calculateFinalAmount = () => {
-    if (!selectedOrder) return 0;
+    if (!order) return 0;
     
-    const subtotal = selectedOrder.total;
-    const totalWithTip = subtotal + tipAmount;
-    return totalWithTip - discountAmount;
-  };
-  
-  // Handle payment processing
-  const processPayment = () => {
-    if (!selectedOrder) return;
-    
-    // Here you would normally send payment info to your backend
-    const paymentInfo = {
-      orderId: selectedOrder.id,
-      tableId: selectedOrder.tableId,
-      subtotal: selectedOrder.total,
-      tip: tipAmount,
-      discount: discountAmount,
-      total: calculateFinalAmount(),
-      paymentMethod,
-      customerName: selectedOrder.customerName,
-      customerEmail,
-      customerPhone,
-      timestamp: new Date()
-    };
-    
-    console.log('Payment processed:', paymentInfo);
-    setShowReceipt(true);
+    const subtotal = order.subtotal;
+    const tax = order.tax;
+    const totalWithoutTipAndDiscount = subtotal + tax;
+    const finalAmount = totalWithoutTipAndDiscount + tipAmount - discountAmount;
+    return finalAmount;
   };
   
   // Calculate change (for cash payments)
@@ -146,453 +109,282 @@ export default function ProcessPaymentPage() {
     return cashReceived > finalAmount ? cashReceived - finalAmount : 0;
   };
   
-  // Reset state after printing receipt
+  // Handle payment processing
+  const processPayment = async (markAsPaid: boolean) => {
+    if (!order) return;
+    
+    try {
+      setIsSubmitting(true);
+      
+      // Prepare bill data
+      const billData = {
+        order: order._id,
+        subtotal: order.subtotal,
+        tax: order.tax,
+        tip: tipAmount,
+        discount: discountAmount,
+        paymentMethod,
+        paymentStatus: markAsPaid ? 'paid' : 'pending' as 'paid' | 'pending',
+        customerName: customerName || undefined,
+        customerPhone: customerPhone || undefined
+      };
+      
+      // Create bill
+      const bill = await createBill(billData);
+      
+      // Show success message
+      toast.success(`Bill ${markAsPaid ? 'created and marked as paid' : 'created'} successfully`);
+      
+      // Store the generated bill to show receipt
+      setGeneratedBill(bill);
+      setBillGenerated(true);
+      setShowReceipt(true);
+      
+    } catch (err) {
+      console.error('Error creating bill:', err);
+      toast.error('Failed to create bill. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  // Reset state and go back after printing receipt
   const finishPayment = () => {
-    setSelectedOrder(null);
-    setPaymentMethod('cash');
-    setTipAmount(0);
-    setDiscountAmount(0);
-    setShowReceipt(false);
-    setCashReceived(0);
-    setCustomerEmail('');
-    setCustomerPhone('');
+    router.push('/waiter/bills');
   };
 
+  // Format date helper
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  
+  // Loading state
+  if (loading) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center h-screen">
+        <FaSpinner className="animate-spin text-3xl text-blue-500 mb-4" />
+        <p>Loading order details...</p>
+      </div>
+    );
+  }
+  
+  // Error state
+  if (error || !order) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center mb-6">
+          <Link href="/waiter/bills" className="mr-4 text-gray-600 hover:text-gray-800">
+            <FaArrowLeft size={18} />
+          </Link>
+          <h1 className="text-2xl font-bold text-gray-800">Process Payment</h1>
+        </div>
+        
+        <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6">
+          <h2 className="text-lg font-medium mb-2">Error</h2>
+          <p>{error || 'Failed to load order details'}</p>
+          <Link 
+            href="/waiter/orders"
+            className="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded"
+          >
+            Back to Orders
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6">
-      <div className="flex items-center mb-6">
-        <Link href="/waiter/bills" className="mr-4 text-gray-600 hover:text-gray-800">
-          <FaArrowLeft size={18} />
-        </Link>
-        <h1 className="text-2xl font-bold text-gray-800">Process Payment</h1>
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center">
+          <button
+            onClick={() => router.back()}
+            className="mr-3 bg-gray-200 p-2 rounded-full"
+          >
+            <FaArrowLeft />
+          </button>
+          <h1 className="text-2xl font-bold">Finalize Bill</h1>
+        </div>
+        
+        <div className="flex items-center">
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+            order.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+          }`}>
+            {order.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}
+          </span>
+        </div>
       </div>
       
-      {showReceipt ? (
-        // Receipt View
-        <div className="max-w-md mx-auto bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="bg-indigo-600 text-white px-6 py-4 flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Payment Receipt</h2>
-            <button 
-              onClick={() => setShowReceipt(false)}
-              className="text-white hover:text-gray-200"
-            >
-              <FaTimes size={18} />
-            </button>
-          </div>
-          
-          <div className="p-6 space-y-4">
-            <div className="text-center mb-6">
-              <h3 className="text-lg font-bold text-gray-800">Restaurant Name</h3>
-              <p className="text-sm text-gray-500">123 Main Street, City</p>
-              <p className="text-sm text-gray-500">Tel: 123-456-7890</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 bg-white rounded-lg shadow-md p-6">
+          <div className="mb-6">
+            <div className="flex justify-between mb-2">
+              <span className="font-medium">Order #:</span>
+              <span>{order.orderNumber}</span>
             </div>
-            
-            <div className="border-t border-b border-gray-200 py-4">
-              <div className="flex justify-between mb-2">
-                <span className="font-medium">Order #:</span>
-                <span>{selectedOrder?.id}</span>
-              </div>
-              <div className="flex justify-between mb-2">
-                <span className="font-medium">Table:</span>
-                <span>{selectedOrder?.tableName}</span>
-              </div>
-              <div className="flex justify-between mb-2">
-                <span className="font-medium">Date:</span>
-                <span>{new Date().toLocaleDateString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-medium">Time:</span>
-                <span>{new Date().toLocaleTimeString()}</span>
-              </div>
+            <div className="flex justify-between mb-2">
+              <span className="font-medium">Table:</span>
+              <span>#{order.table?.number || 'N/A'}</span>
             </div>
-            
-            <div className="space-y-2 py-2">
-              <h4 className="font-medium text-gray-700">Items</h4>
-              {selectedOrder?.items.map(item => (
-                <div key={item.id} className="flex justify-between text-sm">
-                  <span>{item.quantity} x {item.name}</span>
-                  <span>₹{item.price * item.quantity}</span>
-                </div>
-              ))}
-            </div>
-            
-            <div className="border-t border-gray-200 pt-4 space-y-2">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span>₹{selectedOrder?.total}</span>
-              </div>
-              {tipAmount > 0 && (
-                <div className="flex justify-between">
-                  <span>Tip</span>
-                  <span>₹{tipAmount}</span>
-                </div>
-              )}
-              {discountAmount > 0 && (
-                <div className="flex justify-between">
-                  <span>Discount</span>
-                  <span>-₹{discountAmount}</span>
-                </div>
-              )}
-              <div className="flex justify-between font-bold pt-2 border-t border-gray-200">
-                <span>Total</span>
-                <span>₹{calculateFinalAmount()}</span>
-              </div>
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Payment Method</span>
-                <span className="capitalize">{paymentMethod}</span>
-              </div>
-            </div>
-            
-            <div className="border-t border-gray-200 pt-4 text-center text-sm text-gray-500">
-              <p>Thank you for dining with us!</p>
-              <p>Please visit again soon.</p>
+            <div className="flex justify-between mb-2">
+              <span className="font-medium">Date:</span>
+              <span>{new Date(order.createdAt).toLocaleString()}</span>
             </div>
           </div>
           
-          <div className="bg-gray-50 px-6 py-4 flex gap-2 justify-center">
-            <button 
-              onClick={finishPayment}
-              className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center hover:bg-green-700"
-            >
-              <FaCheck className="mr-2" />
-              Done
-            </button>
-            <button className="px-4 py-2 bg-gray-600 text-white rounded-md flex items-center hover:bg-gray-700">
-              <FaPrint className="mr-2" />
-              Print
-            </button>
-            {customerPhone && (
-              <button className="px-4 py-2 bg-green-500 text-white rounded-md flex items-center hover:bg-green-600">
-                <FaWhatsapp className="mr-2" />
-                Send
-              </button>
-            )}
-            {customerEmail && (
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-md flex items-center hover:bg-blue-600">
-                <FaEnvelope className="mr-2" />
-                Email
-              </button>
-            )}
-          </div>
-        </div>
-      ) : (
-        // Payment Form
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Tables & Orders */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">Select Table</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {tables.map(table => (
-                  <button
-                    key={table.id}
-                    onClick={() => {
-                      setSelectedOrder(null);
-                      // Find orders for this table
-                      const tableOrders = activeOrders.filter(order => order.tableId === table.id);
-                      if (tableOrders.length === 1) {
-                        setSelectedOrder(tableOrders[0]);
-                      }
-                    }}
-                    className={`p-3 rounded-lg border flex flex-col items-center ${
-                      selectedOrder?.tableId === table.id 
-                        ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
-                        : 'border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <FaReceipt className={`mb-1 ${selectedOrder?.tableId === table.id ? 'text-indigo-500' : 'text-gray-500'}`} />
-                    <span className="font-medium">{table.name}</span>
-                  </button>
+          <h2 className="text-lg font-medium mb-3 border-b pb-2">Items</h2>
+          <div className="max-h-80 overflow-y-auto mb-6">
+            <table className="min-w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                  <th className="py-2 px-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                  <th className="py-2 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                  <th className="py-2 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {order.items.map((item, index) => (
+                  <tr key={index}>
+                    <td className="py-2 px-3">{item.name}</td>
+                    <td className="py-2 px-3 text-center">{item.quantity}</td>
+                    <td className="py-2 px-3 text-right">₹{item.price.toFixed(2)}</td>
+                    <td className="py-2 px-3 text-right">₹{(item.price * item.quantity).toFixed(2)}</td>
+                  </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+          
+          <form onSubmit={() => processPayment(true)}>
+            <h2 className="text-lg font-medium mb-3 border-b pb-2">Payment Details</h2>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Payment Method
+              </label>
+              <select
+                name="paymentMethod"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as 'cash' | 'card' | 'upi')}
+                className="w-full p-2 border border-gray-300 rounded"
+              >
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="upi">UPI</option>
+              </select>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tip Amount
+                </label>
+                <input
+                  type="number"
+                  name="tip"
+                  value={tipAmount}
+                  onChange={(e) => setTipAmount(parseFloat(e.target.value) || 0)}
+                  min="0"
+                  step="0.01"
+                  className="w-full p-2 border border-gray-300 rounded"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Discount Amount
+                </label>
+                <input
+                  type="number"
+                  name="discount"
+                  value={discountAmount}
+                  onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
+                  min="0"
+                  step="0.01"
+                  className="w-full p-2 border border-gray-300 rounded"
+                />
               </div>
             </div>
             
-            {selectedOrder && (
-              <div className="bg-white rounded-lg shadow-md p-4">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4">Order Details</h2>
-                <div className="mb-4">
-                  <div className="flex justify-between mb-2">
-                    <span className="font-medium">Order #</span>
-                    <span>{selectedOrder.id}</span>
-                  </div>
-                  <div className="flex justify-between mb-2">
-                    <span className="font-medium">Customer</span>
-                    <span>{selectedOrder.customerName || 'Anonymous'}</span>
-                  </div>
-                  <div className="flex justify-between mb-2">
-                    <span className="font-medium">Time</span>
-                    <span>{new Date(selectedOrder.orderTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                </div>
-                
-                <div className="border-t border-gray-200 py-4">
-                  <h3 className="font-medium text-gray-700 mb-2">Items</h3>
-                  <div className="space-y-2">
-                    {selectedOrder.items.map(item => (
-                      <div key={item.id} className="flex justify-between">
-                        <div>
-                          <span>{item.quantity} × {item.name}</span>
-                        </div>
-                        <span className="font-medium">₹{item.price * item.quantity}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="border-t border-gray-200 py-4">
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Subtotal</span>
-                    <span>₹{selectedOrder.total}</span>
-                  </div>
-                </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="mr-3 px-4 py-2 border border-gray-300 rounded-md text-gray-700"
+              >
+                Cancel
+              </button>
+              
+              <button
+                type="submit"
+                disabled={isSubmitting || billGenerated}
+                className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center"
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center">
+                    <div className="animate-spin h-5 w-5 mr-2 border-t-2 border-b-2 border-white rounded-full"></div>
+                    Processing...
+                  </span>
+                ) : (
+                  <>
+                    <FaCheck className="mr-2" /> Mark as Paid & Print
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-lg font-medium mb-4 pb-2 border-b">Bill Summary</h2>
+          
+          <div className="space-y-3 mb-6">
+            <div className="flex justify-between">
+              <span>Subtotal:</span>
+              <span>₹{order.subtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Tax (10%):</span>
+              <span>₹{order.tax.toFixed(2)}</span>
+            </div>
+            {tipAmount > 0 && (
+              <div className="flex justify-between">
+                <span>Tip:</span>
+                <span>₹{tipAmount.toFixed(2)}</span>
               </div>
             )}
+            {discountAmount > 0 && (
+              <div className="flex justify-between">
+                <span>Discount:</span>
+                <span>-₹{discountAmount.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between pt-3 border-t border-gray-200 font-semibold">
+              <span>Total:</span>
+              <span>₹{calculateFinalAmount().toFixed(2)}</span>
+            </div>
           </div>
           
-          {/* Right Column - Payment Processing */}
-          <div className={`bg-white rounded-lg shadow-md p-4 ${!selectedOrder ? 'opacity-50' : ''}`}>
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Payment</h2>
-            
-            {!selectedOrder ? (
-              <div className="text-center text-gray-500 py-8">
-                <FaReceipt className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>Select a table to process payment</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {/* Payment Method */}
-                <div>
-                  <h3 className="font-medium text-gray-700 mb-2">Payment Method</h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => setPaymentMethod('cash')}
-                      className={`p-3 border rounded-md flex flex-col items-center ${
-                        paymentMethod === 'cash' 
-                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      <span className="font-medium">Cash</span>
-                    </button>
-                    <button
-                      onClick={() => setPaymentMethod('card')}
-                      className={`p-3 border rounded-md flex flex-col items-center ${
-                        paymentMethod === 'card' 
-                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      <span className="font-medium">Card</span>
-                    </button>
-                    <button
-                      onClick={() => setPaymentMethod('upi')}
-                      className={`p-3 border rounded-md flex flex-col items-center ${
-                        paymentMethod === 'upi' 
-                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      <span className="font-medium">UPI</span>
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Tip */}
-                <div>
-                  <h3 className="font-medium text-gray-700 mb-2">Add Tip</h3>
-                  <div className="grid grid-cols-4 gap-2 mb-2">
-                    <button
-                      onClick={() => setTipAmount(Math.round(selectedOrder.total * 0.05))}
-                      className={`p-2 border rounded-md ${
-                        tipAmount === Math.round(selectedOrder.total * 0.05) 
-                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      5%
-                    </button>
-                    <button
-                      onClick={() => setTipAmount(Math.round(selectedOrder.total * 0.1))}
-                      className={`p-2 border rounded-md ${
-                        tipAmount === Math.round(selectedOrder.total * 0.1) 
-                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      10%
-                    </button>
-                    <button
-                      onClick={() => setTipAmount(Math.round(selectedOrder.total * 0.15))}
-                      className={`p-2 border rounded-md ${
-                        tipAmount === Math.round(selectedOrder.total * 0.15) 
-                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      15%
-                    </button>
-                    <button
-                      onClick={() => setTipAmount(0)}
-                      className={`p-2 border rounded-md ${
-                        tipAmount === 0 
-                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      None
-                    </button>
-                  </div>
-                  <div className="flex items-center">
-                    <label className="mr-2 text-sm">Custom:</label>
-                    <div className="relative flex-1">
-                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">₹</span>
-                      <input
-                        type="number"
-                        value={tipAmount || ''}
-                        onChange={(e) => setTipAmount(Number(e.target.value))}
-                        className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-md"
-                        placeholder="0"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Discount */}
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-medium text-gray-700">Discount</h3>
-                    <button
-                      onClick={() => setDiscountAmount(0)}
-                      className="text-xs text-indigo-600 hover:text-indigo-800"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">₹</span>
-                    <input
-                      type="number"
-                      value={discountAmount || ''}
-                      onChange={(e) => {
-                        const value = Number(e.target.value);
-                        if (value <= selectedOrder.total) {
-                          setDiscountAmount(value);
-                        }
-                      }}
-                      className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-md"
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-                
-                {/* Cash received (only for cash payments) */}
-                {paymentMethod === 'cash' && (
-                  <div>
-                    <h3 className="font-medium text-gray-700 mb-2">Cash Received</h3>
-                    <div className="grid grid-cols-4 gap-2 mb-2">
-                      <button
-                        onClick={() => setCashReceived(500)}
-                        className="p-2 border border-gray-200 rounded-md hover:bg-gray-50"
-                      >
-                        ₹500
-                      </button>
-                      <button
-                        onClick={() => setCashReceived(1000)}
-                        className="p-2 border border-gray-200 rounded-md hover:bg-gray-50"
-                      >
-                        ₹1000
-                      </button>
-                      <button
-                        onClick={() => setCashReceived(2000)}
-                        className="p-2 border border-gray-200 rounded-md hover:bg-gray-50"
-                      >
-                        ₹2000
-                      </button>
-                      <button
-                        onClick={() => setCashReceived(calculateFinalAmount())}
-                        className="p-2 border border-gray-200 rounded-md hover:bg-gray-50"
-                      >
-                        Exact
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">₹</span>
-                      <input
-                        type="number"
-                        value={cashReceived || ''}
-                        onChange={(e) => setCashReceived(Number(e.target.value))}
-                        className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-md"
-                        placeholder="0"
-                      />
-                    </div>
-                    {cashReceived > 0 && (
-                      <div className="flex justify-between mt-2 font-medium">
-                        <span>Change:</span>
-                        <span>₹{calculateChange()}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {/* Customer contact (optional) */}
-                <div>
-                  <h3 className="font-medium text-gray-700 mb-2">Customer Contact (Optional)</h3>
-                  <div className="space-y-2">
-                    <input
-                      type="email"
-                      value={customerEmail}
-                      onChange={(e) => setCustomerEmail(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md"
-                      placeholder="Email for receipt"
-                    />
-                    <input
-                      type="tel"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md"
-                      placeholder="Phone for WhatsApp receipt"
-                    />
-                  </div>
-                </div>
-                
-                {/* Total and process button */}
-                <div className="border-t border-gray-200 pt-4">
-                  <div className="flex justify-between mb-2">
-                    <span className="font-medium">Subtotal</span>
-                    <span>₹{selectedOrder.total}</span>
-                  </div>
-                  {tipAmount > 0 && (
-                    <div className="flex justify-between mb-2">
-                      <span className="font-medium">Tip</span>
-                      <span>₹{tipAmount}</span>
-                    </div>
-                  )}
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between mb-2">
-                      <span className="font-medium">Discount</span>
-                      <span className="text-red-600">-₹{discountAmount}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between mb-4 text-lg font-bold">
-                    <span>Total</span>
-                    <span>₹{calculateFinalAmount()}</span>
-                  </div>
-                  
-                  <button
-                    onClick={processPayment}
-                    disabled={paymentMethod === 'cash' && cashReceived < calculateFinalAmount()}
-                    className="w-full py-3 bg-indigo-600 text-white rounded-md font-medium flex items-center justify-center 
-                      disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-indigo-700"
-                  >
-                    <FaCheck className="mr-2" />
-                    Process Payment
-                  </button>
-                </div>
-              </div>
-            )}
+          <div className="p-4 bg-blue-50 rounded-lg">
+            <div className="flex items-center mb-2">
+              <FaReceipt className="text-blue-500 mr-2" />
+              <h3 className="font-medium text-blue-800">Payment Instructions</h3>
+            </div>
+            <p className="text-sm text-blue-600">
+              Marking as paid will update the order status and generate a printable receipt.
+              This cannot be undone, so please verify all details before proceeding.
+            </p>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 } 

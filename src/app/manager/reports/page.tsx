@@ -398,6 +398,8 @@ export default function ReportsPage() {
         queryParams.append('endDate', customDateRange.end);
       }
       
+      console.log(`Fetching report data: /api/manager/reports?${queryParams.toString()}`);
+      
       // Fetch data from API
       const response = await fetch(`/api/manager/reports?${queryParams.toString()}`, {
         method: 'GET',
@@ -408,11 +410,26 @@ export default function ReportsPage() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch report data');
+        const errorText = await response.text();
+        console.error(`API error (${response.status}):`, errorText);
+        throw new Error(`Failed to fetch report data (${response.status}): ${response.statusText}`);
       }
       
-      const data = await response.json();
-      console.log('API data received:', data);
+      let data;
+      try {
+        data = await response.json();
+        console.log('API data received:', data);
+      } catch (parseError) {
+        console.error('Error parsing API response:', parseError);
+        throw new Error('Invalid data format received from server');
+      }
+      
+      // Validate data structure
+      if (!data || !data.data) {
+        console.warn('API returned invalid data format', data);
+        throw new Error('API returned invalid data format');
+      }
+      
       setReportData(data);
     } catch (err: any) {
       console.error('Error fetching report data:', err);
@@ -460,9 +477,15 @@ export default function ReportsPage() {
     ? reportDataForType as any
     : menuReportData;
     
+  // First, ensure customersData has proper fallback values
   const customersData = activeReport === 'customers' && reportDataForType
     ? reportDataForType
-    : { topCustomers, totalCustomers: topCustomers.length, newCustomers: 0, repeatCustomers: 0 };
+    : { 
+        topCustomers: [], 
+        totalCustomers: 0, 
+        newCustomers: 0, 
+        repeatCustomers: 0 
+      };
     
   // Ensure all potential array data has fallbacks
   const safeRevenueByDay = Array.isArray(salesData?.revenueByDay) ? salesData.revenueByDay : [];
@@ -656,6 +679,35 @@ export default function ReportsPage() {
           </div>
         )}
       </div>
+      
+      {/* Error Message Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-6">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Error loading report data</h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>{error}</p>
+              </div>
+              <div className="mt-4">
+                <div className="-mx-2 -my-1.5 flex">
+                  <button
+                    onClick={() => fetchReportData()}
+                    className="bg-red-50 px-2 py-1.5 rounded-md text-sm font-medium text-red-800 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Report Content */}
       <div className="space-y-6">
@@ -927,21 +979,21 @@ export default function ReportsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
               <StatCard 
                 title="Total Customers" 
-                value={customersData.totalCustomers.toString()} 
+                value={String(customersData?.totalCustomers || 0)} 
                 icon={<FaChartLine />} 
                 change="+15.2% from previous period" 
                 changeType="positive" 
               />
               <StatCard 
                 title="New Customers" 
-                value={customersData.newCustomers.toString()} 
+                value={String(customersData?.newCustomers || 0)} 
                 icon={<FaChartBar />} 
                 change="+23.6% from previous period" 
                 changeType="positive" 
               />
               <StatCard 
                 title="Repeat Customers" 
-                value={customersData.repeatCustomers.toString()} 
+                value={String(customersData?.repeatCustomers || 0)} 
                 icon={<FaChartPie />} 
                 change="+4.8% from previous period" 
                 changeType="positive" 
@@ -1101,24 +1153,21 @@ export default function ReportsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {safeTopCustomers.map((customer: {
-                      id: string;
-                      name: string;
-                      totalSpent: number;
-                      visitCount: number;
-                      lastVisit: string;
-                      avgOrderValue: number;
-                      loyaltyPoints: number;
-                    }, idx: number) => (
-                      <tr key={`customer-${idx}`} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-2">{customer.name}</td>
-                        <td className="px-4 py-2">${customer.totalSpent.toFixed(2)}</td>
-                        <td className="px-4 py-2">{customer.visitCount}</td>
-                        <td className="px-4 py-2">{formatDate(customer.lastVisit)}</td>
-                        <td className="px-4 py-2">${customer.avgOrderValue.toFixed(2)}</td>
-                        <td className="px-4 py-2">{customer.loyaltyPoints}</td>
+                    {safeTopCustomers.length > 0 ? (
+                      safeTopCustomers.map((customer: any, idx: number) => (
+                        <tr key={`customer-${idx}`} className="border-b hover:bg-gray-50">
+                          <td className="px-4 py-2">{customer?.name || 'Unknown'}</td>
+                          <td className="px-4 py-2">{customer?.visitCount || customer?.visits || 0}</td>
+                          <td className="px-4 py-2">{formatCurrency(customer?.totalSpent || customer?.spent || 0)}</td>
+                          <td className="px-4 py-2">{formatDate(customer?.lastVisit || '')}</td>
+                          <td className="px-4 py-2">{formatCurrency(customer?.avgOrderValue || 0)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-4 text-center text-gray-500">No customer data available</td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -103,7 +103,7 @@ const useBills = () => {
       if (filters.tableId) params.append('tableId', filters.tableId);
       if (filters.waiterId) params.append('waiterId', filters.waiterId);
       
-      const response = await axios.get(`${API_URL}/bills?${params.toString()}`);
+      const response = await axios.get(`/api/waiter/bills?${params.toString()}`);
       
       setBills(response.data.bills);
       setPagination(response.data.pagination);
@@ -120,7 +120,7 @@ const useBills = () => {
   const getAllBills = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/bills/all`);
+      const response = await axios.get(`/api/waiter/bills?all=true`);
       return response.data.bills;
     } catch (err) {
       setError(err as Error);
@@ -134,7 +134,7 @@ const useBills = () => {
   const getBill = useCallback(async (billId: string) => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/bills/${billId}`);
+      const response = await axios.get(`/api/waiter/bills/${billId}`);
       return response.data.bill;
     } catch (err) {
       setError(err as Error);
@@ -148,7 +148,7 @@ const useBills = () => {
   const createBill = useCallback(async (billData: BillCreateData) => {
     try {
       setLoading(true);
-      const response = await axios.post(`${API_URL}/bills`, billData);
+      const response = await axios.post(`/api/waiter/bills`, billData);
       // Refresh bills after creating a new one
       await fetchBills();
       return response.data.bill;
@@ -164,7 +164,7 @@ const useBills = () => {
   const updateBill = useCallback(async (billId: string, updateData: BillUpdateData) => {
     try {
       setLoading(true);
-      const response = await axios.put(`${API_URL}/bills/${billId}`, updateData);
+      const response = await axios.put(`/api/waiter/bills/${billId}`, updateData);
       
       // Update local state
       setBills(prevBills =>
@@ -186,7 +186,7 @@ const useBills = () => {
   const deleteBill = useCallback(async (billId: string) => {
     try {
       setLoading(true);
-      await axios.delete(`${API_URL}/bills/${billId}`);
+      await axios.delete(`/api/waiter/bills/${billId}`);
       
       // Update local state
       setBills(prevBills => prevBills.filter(bill => bill._id !== billId));

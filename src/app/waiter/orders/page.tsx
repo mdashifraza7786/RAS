@@ -1,47 +1,70 @@
 'use client';
 
-import { useState } from 'react';
-import { useOrders, OrderFilters } from '@/hooks/useOrders';
+import { useState, useEffect } from 'react';
+import { Order } from '@/hooks/useOrders';
 import OrdersTable from '@/components/orders/OrdersTable';
 import { FaPlus, FaSyncAlt } from 'react-icons/fa';
 import Link from 'next/link';
+import { waiterApi } from '@/utils/api';
+import { toast } from 'react-hot-toast';
+
+// Define filter options
+type FilterType = 'all' | 'pending' | 'in-progress' | 'ready' | 'completed';
 
 export default function WaiterOrdersPage() {
-  const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   
-  // Define filters for each tab
-  const filterMap: Record<string, OrderFilters> = {
-    all: {},
-    pending: { status: 'pending' },
-    'in-progress': { status: 'in-progress' },
-    ready: { status: 'ready' },
-    completed: { status: 'completed' }
+  // Fetch orders based on current filter
+  const fetchOrders = async (filter: FilterType = activeFilter) => {
+    try {
+      setLoading(true);
+      
+      const params = new URLSearchParams();
+      if (filter !== 'all') {
+        params.append('status', filter);
+      }
+      
+      console.log(`Fetching orders with filter: ${filter}`);
+      const response = await waiterApi.getOrders(params);
+      
+      console.log(`Received ${response.orders.length} orders`);
+      setOrders(response.orders);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+      setError(err instanceof Error ? err : new Error('Failed to fetch orders'));
+      toast.error('Failed to load orders. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
   
-  // Use the orders hook with initial filter
-  const { 
-    orders, 
-    loading, 
-    error, 
-    updateOrder, 
-    fetchOrders, 
-    updateFilters 
-  } = useOrders(filterMap[activeFilter]);
+  // Initial data load
+  useEffect(() => {
+    fetchOrders();
+  }, []);
   
   // Handler for updating order status
-  const handleUpdateStatus = async (orderId: string, newStatus: 'pending' | 'in-progress' | 'ready' | 'completed' | 'cancelled') => {
-    await updateOrder(orderId, { status: newStatus });
+  const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
+    try {
+      await waiterApi.updateOrderStatus(orderId, newStatus);
+      toast.success(`Order status updated to ${newStatus}`);
+      
+      // Refetch orders to update the table
+      fetchOrders();
+    } catch (err) {
+      console.error('Error updating order status:', err);
+      toast.error('Failed to update order status');
+    }
   };
   
   // Handler for filter change
-  const handleFilterChange = (filter: string) => {
+  const handleFilterChange = (filter: FilterType) => {
     setActiveFilter(filter);
-    updateFilters(filterMap[filter]);
-  };
-  
-  // Handler for manual refresh
-  const handleRefresh = () => {
-    fetchOrders();
+    fetchOrders(filter);
   };
   
   return (
@@ -50,7 +73,7 @@ export default function WaiterOrdersPage() {
         <h1 className="text-2xl font-bold">Orders</h1>
         <div className="flex space-x-3">
           <button
-            onClick={handleRefresh}
+            onClick={() => fetchOrders()}
             disabled={loading}
             className="flex items-center px-4 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
           >
@@ -70,7 +93,7 @@ export default function WaiterOrdersPage() {
       {/* Filter tabs */}
       <div className="mb-6 border-b border-gray-200">
         <nav className="flex -mb-px">
-          {Object.keys(filterMap).map((filter) => (
+          {(['all', 'pending', 'in-progress', 'ready', 'completed'] as FilterType[]).map((filter) => (
             <button
               key={filter}
               onClick={() => handleFilterChange(filter)}

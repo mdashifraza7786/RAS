@@ -5,6 +5,7 @@ export interface ITable extends Document {
   name: string;
   capacity: number;
   status: 'available' | 'occupied' | 'reserved' | 'cleaning';
+  assignedTo?: mongoose.Types.ObjectId; // Reference to User (waiter)
   lastStatusChanged: Date;
   location: string;
   createdAt: Date;
@@ -32,6 +33,11 @@ const tableSchema = new Schema<ITable>(
       type: String,
       enum: ['available', 'occupied', 'reserved', 'cleaning'],
       default: 'available'
+    },
+    assignedTo: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: false
     },
     lastStatusChanged: {
       type: Date,
