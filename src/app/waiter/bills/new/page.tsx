@@ -177,15 +177,15 @@ export default function CreateBillPage() {
   
   // Error state
   if (error || !order) {
-    return (
-      <div className="p-6">
-        <div className="flex items-center mb-6">
-          <Link href="/waiter/bills" className="mr-4 text-gray-600 hover:text-gray-800">
-            <FaArrowLeft size={18} />
-          </Link>
-          <h1 className="text-2xl font-bold text-gray-800">Process Payment</h1>
-        </div>
-        
+  return (
+    <div className="p-6">
+      <div className="flex items-center mb-6">
+        <Link href="/waiter/bills" className="mr-4 text-gray-600 hover:text-gray-800">
+          <FaArrowLeft size={18} />
+        </Link>
+        <h1 className="text-2xl font-bold text-gray-800">Process Payment</h1>
+      </div>
+      
         <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6">
           <h2 className="text-lg font-medium mb-2">Error</h2>
           <p>{error || 'Failed to load order details'}</p>
@@ -204,15 +204,15 @@ export default function CreateBillPage() {
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center">
-          <button
+            <button 
             onClick={() => router.back()}
             className="mr-3 bg-gray-200 p-2 rounded-full"
-          >
+            >
             <FaArrowLeft />
-          </button>
+            </button>
           <h1 className="text-2xl font-bold">Finalize Bill</h1>
-        </div>
-        
+          </div>
+          
         <div className="flex items-center">
           <span className={`px-3 py-1 rounded-full text-sm font-medium ${
             order.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
@@ -220,21 +220,21 @@ export default function CreateBillPage() {
             {order.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}
           </span>
         </div>
-      </div>
-      
+            </div>
+            
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 bg-white rounded-lg shadow-md p-6">
           <div className="mb-6">
-            <div className="flex justify-between mb-2">
-              <span className="font-medium">Order #:</span>
+              <div className="flex justify-between mb-2">
+                <span className="font-medium">Order #:</span>
               <span>{order.orderNumber}</span>
-            </div>
-            <div className="flex justify-between mb-2">
-              <span className="font-medium">Table:</span>
+              </div>
+              <div className="flex justify-between mb-2">
+                <span className="font-medium">Table:</span>
               <span>#{order.table?.number || 'N/A'}</span>
-            </div>
-            <div className="flex justify-between mb-2">
-              <span className="font-medium">Date:</span>
+              </div>
+              <div className="flex justify-between mb-2">
+                <span className="font-medium">Date:</span>
               <span>{new Date(order.createdAt).toLocaleString()}</span>
             </div>
           </div>
@@ -280,15 +280,15 @@ export default function CreateBillPage() {
                 <option value="card">Card</option>
                 <option value="upi">UPI</option>
               </select>
-            </div>
-            
+                </div>
+                
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <div>
+                <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Tip Amount
                 </label>
-                <input
-                  type="number"
+                      <input
+                        type="number"
                   name="tip"
                   value={tipAmount}
                   onChange={(e) => setTipAmount(parseFloat(e.target.value) || 0)}
@@ -296,34 +296,34 @@ export default function CreateBillPage() {
                   step="0.01"
                   className="w-full p-2 border border-gray-300 rounded"
                 />
-              </div>
-              
-              <div>
+                </div>
+                
+                <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Discount Amount
                 </label>
-                <input
-                  type="number"
+                    <input
+                      type="number"
                   name="discount"
                   value={discountAmount}
                   onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
                   min="0"
                   step="0.01"
                   className="w-full p-2 border border-gray-300 rounded"
-                />
-              </div>
-            </div>
-            
+                    />
+                  </div>
+                </div>
+                
             <div className="flex justify-end">
-              <button
+                      <button
                 type="button"
                 onClick={() => router.back()}
                 className="mr-3 px-4 py-2 border border-gray-300 rounded-md text-gray-700"
-              >
+                      >
                 Cancel
-              </button>
+                      </button>
               
-              <button
+                      <button
                 type="submit"
                 disabled={isSubmitting || billGenerated}
                 className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center"
@@ -339,10 +339,10 @@ export default function CreateBillPage() {
                   </>
                 )}
               </button>
-            </div>
+                  </div>
           </form>
-        </div>
-        
+                </div>
+                
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-lg font-medium mb-4 pb-2 border-b">Bill Summary</h2>
           
@@ -354,14 +354,14 @@ export default function CreateBillPage() {
             <div className="flex justify-between">
               <span>Tax (10%):</span>
               <span>₹{order.tax.toFixed(2)}</span>
-            </div>
-            {tipAmount > 0 && (
+                  </div>
+                  {tipAmount > 0 && (
               <div className="flex justify-between">
                 <span>Tip:</span>
                 <span>₹{tipAmount.toFixed(2)}</span>
-              </div>
-            )}
-            {discountAmount > 0 && (
+                    </div>
+                  )}
+                  {discountAmount > 0 && (
               <div className="flex justify-between">
                 <span>Discount:</span>
                 <span>-₹{discountAmount.toFixed(2)}</span>

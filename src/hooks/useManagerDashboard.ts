@@ -1,4 +1,5 @@
-'use client'
+'use client';
+
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_URL } from '@/config/constants';
@@ -26,7 +27,7 @@ export function useManagerDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
- 
+
   const fetchStats = async () => {
     try {
       setLoading(true);

@@ -123,11 +123,11 @@ export default function BillsPage() {
     // Search by order number, table number, or total
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      return (
+    return (
         order.orderNumber.toString().includes(term) ||
         (order.table?.number.toString() || '').includes(term)
-      );
-    }
+    );
+  }
     
     return true;
   });
@@ -139,23 +139,23 @@ export default function BillsPage() {
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <FaSearch className="absolute left-3 top-3 text-gray-400" />
-          <input
-            type="text"
+            <input
+              type="text"
             placeholder="Search by order # or table #"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 p-2 border border-gray-300 rounded w-full"
-          />
-        </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
           className="p-2 border border-gray-300 rounded min-w-[150px]"
         >
           <option value="all">All Orders</option>
           <option value="unpaid">Unpaid Only</option>
           <option value="paid">Paid Only</option>
-        </select>
+          </select>
       </div>
       
       {loading ? (
@@ -180,26 +180,26 @@ export default function BillsPage() {
                   }`}>
                     {order.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}
                   </span>
-                </div>
+                      </div>
                 <p className="text-gray-600 mt-1">Table #{order.table?.number || 'N/A'}</p>
-              </div>
+                      </div>
               
               <div className="p-4 bg-gray-50">
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal:</span>
                     <span>₹{order.subtotal?.toFixed(2) || '0.00'}</span>
-                  </div>
+                      </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax:</span>
                     <span>₹{order.tax?.toFixed(2) || '0.00'}</span>
-                  </div>
+                      </div>
                   <div className="flex justify-between pt-2 border-t border-gray-200 font-medium">
                     <span>Total:</span>
                     <span>₹{order.total?.toFixed(2) || '0.00'}</span>
-                  </div>
-                </div>
-              </div>
+                      </div>
+                        </div>
+                        </div>
               
               <div className="p-4 border-t border-gray-200">
                 <div className="grid grid-cols-2 gap-3">
