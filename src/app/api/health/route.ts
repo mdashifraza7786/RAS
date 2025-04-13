@@ -5,6 +5,7 @@ export async function GET() {
   try {
     // Try to connect to the database
     const mongoose = await connectToDatabase();
+    console.log(process.env.MONGODB_URI)
     
     // Get the connection status
     const connectionState = mongoose.connection.readyState;
