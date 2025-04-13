@@ -1,3 +1,5 @@
+'use client';
+
 import { useMenu, MenuItem } from './useMenu';
 
 // Export the MenuItem interface

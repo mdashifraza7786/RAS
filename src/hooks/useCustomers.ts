@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { customerApi } from '../utils/api';
 import { Bill } from './useBills';
