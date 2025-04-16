@@ -1,19 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FaSearch, 
-  FaPlus, 
   FaMinus, 
   FaExclamationTriangle, 
   FaSort,
   FaSortAmountDown,
-  FaSortAmountUp
+  FaSortAmountUp,
+  FaSpinner
 } from 'react-icons/fa';
+import axios from 'axios';
+import { API_URL } from '@/config/constants';
+import { toast } from 'react-hot-toast';
 
 // Types
 interface InventoryItem {
-  id: number;
+  id: string;
   name: string;
   category: string;
   currentStock: number;
@@ -24,93 +27,8 @@ interface InventoryItem {
   notes?: string;
 }
 
-// Sample data
-const inventoryData: InventoryItem[] = [
-  {
-    id: 1,
-    name: 'Chicken',
-    category: 'Meat',
-    currentStock: 2.5,
-    unit: 'kg',
-    minThreshold: 5,
-    lastUpdated: '2023-04-02',
-    supplier: 'Fresh Farms',
-    notes: 'Order twice a week'
-  },
-  {
-    id: 2,
-    name: 'Paneer',
-    category: 'Dairy',
-    currentStock: 1.2,
-    unit: 'kg',
-    minThreshold: 2,
-    lastUpdated: '2023-04-02',
-    supplier: 'Local Dairy'
-  },
-  {
-    id: 3,
-    name: 'Basmati Rice',
-    category: 'Grains',
-    currentStock: 3,
-    unit: 'kg',
-    minThreshold: 5,
-    lastUpdated: '2023-04-01',
-    supplier: 'Premium Foods'
-  },
-  {
-    id: 4,
-    name: 'Tomatoes',
-    category: 'Vegetables',
-    currentStock: 8,
-    unit: 'kg',
-    minThreshold: 4,
-    lastUpdated: '2023-04-02',
-    supplier: 'Fresh Farms'
-  },
-  {
-    id: 5,
-    name: 'Onions',
-    category: 'Vegetables',
-    currentStock: 12,
-    unit: 'kg',
-    minThreshold: 5,
-    lastUpdated: '2023-04-01',
-    supplier: 'Fresh Farms'
-  },
-  {
-    id: 6,
-    name: 'Garam Masala',
-    category: 'Spices',
-    currentStock: 0.8,
-    unit: 'kg',
-    minThreshold: 0.5,
-    lastUpdated: '2023-03-28',
-    supplier: 'Spice World'
-  },
-  {
-    id: 7,
-    name: 'Butter',
-    category: 'Dairy',
-    currentStock: 1.5,
-    unit: 'kg',
-    minThreshold: 1,
-    lastUpdated: '2023-04-02',
-    supplier: 'Local Dairy'
-  },
-  {
-    id: 8,
-    name: 'Flour',
-    category: 'Baking',
-    currentStock: 8,
-    unit: 'kg',
-    minThreshold: 5,
-    lastUpdated: '2023-03-30',
-    supplier: 'Premium Foods'
-  }
-];
-
 export default function InventoryPage() {
-  const [inventory, setInventory] = useState<InventoryItem[]>(inventoryData);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [sortConfig, setSortConfig] = useState<{
@@ -118,6 +36,27 @@ export default function InventoryPage() {
     direction: 'asc' | 'desc'
   }>({ key: 'name', direction: 'asc' });
   const [showLowStock, setShowLowStock] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [useQuantities, setUseQuantities] = useState<Record<string, number>>({});
+  
+  // Fetch inventory data
+  useEffect(() => {
+    const fetchInventory = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(`${API_URL}/inventory`);
+        setInventory(response.data.items);
+      } catch (err) {
+        console.error('Error fetching inventory:', err);
+        setError('Failed to load inventory data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchInventory();
+  }, []);
   
   const categories = ['All', ...new Set(inventory.map(item => item.category))];
   
@@ -149,21 +88,64 @@ export default function InventoryPage() {
     return 0;
   });
   
-  // Function to request inventory update
-  const requestUpdate = (itemId: number, amount: number) => {
-    console.log(`Requesting update for item #${itemId}: ${amount > 0 ? 'add' : 'use'} ${Math.abs(amount)} units`);
+  // Function to request inventory update - only for reducing quantities
+  const requestUseIngredient = async (id: string) => {
+    const amount = useQuantities[id] || 0;
     
-    // Update the inventory item (in a real app, this would also call an API)
-    setInventory(prev => prev.map(item => {
-      if (item.id === itemId) {
-        const newStock = Math.max(0, item.currentStock + amount);
-        return {
-          ...item,
-          currentStock: newStock,
-          lastUpdated: new Date().toISOString().split('T')[0]
-        };
-      }
-      return item;
+    if (amount <= 0) {
+      toast.error('Please enter a valid quantity to use');
+      return;
+    }
+    
+    const item = inventory.find(item => item.id === id);
+    if (!item) return;
+    
+    if (amount > item.currentStock) {
+      toast.error(`Cannot use more than available stock (${item.currentStock} ${item.unit})`);
+      return;
+    }
+    
+    try {
+      // Send negative amount to reduce inventory
+      const response = await axios.patch(`${API_URL}/chef/inventory/update`, {
+        itemId: id,
+        amount: -amount
+      });
+      
+      // Update local state
+      setInventory(prev => prev.map(item => {
+        if (item.id === id) {
+          const newStock = Math.max(0, item.currentStock - amount);
+          return {
+            ...item,
+            currentStock: newStock,
+            lastUpdated: new Date().toISOString().split('T')[0]
+          };
+        }
+        return item;
+      }));
+      
+      // Reset input field
+      setUseQuantities(prev => ({
+        ...prev,
+        [id]: 0
+      }));
+      
+      toast.success(`Used ${amount} ${item.unit} of ${item.name}`);
+    } catch (err) {
+      console.error(`Error updating inventory for item ${id}:`, err);
+      toast.error('Failed to update inventory');
+    }
+  };
+  
+  // Handle quantity input change
+  const handleQuantityChange = (id: string, value: string) => {
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || numValue < 0) return;
+    
+    setUseQuantities(prev => ({
+      ...prev,
+      [id]: numValue
     }));
   };
   
@@ -186,11 +168,31 @@ export default function InventoryPage() {
   // Count low stock items
   const lowStockCount = inventory.filter(item => item.currentStock < item.minThreshold).length;
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <FaSpinner className="animate-spin text-4xl text-indigo-600 mr-3" />
+        <p className="text-lg">Loading inventory...</p>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="p-6 bg-red-50 rounded-lg mx-auto max-w-4xl mt-8">
+        <h2 className="text-lg font-bold text-red-800">Error Loading Inventory</h2>
+        <p className="text-red-700">{error}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Inventory Management</h1>
-        <p className="text-gray-600">Track and manage kitchen ingredients</p>
+        <h1 className="text-2xl font-bold text-gray-800">Kitchen Inventory</h1>
+        <p className="text-gray-600">Track and use ingredients during food preparation</p>
       </div>
       
       {/* Stock summary */}
@@ -325,7 +327,7 @@ export default function InventoryPage() {
                   </button>
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <span>Actions</span>
+                  <span>Use Ingredients</span>
                 </th>
               </tr>
             </thead>
@@ -370,19 +372,35 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center space-x-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max={item.currentStock}
+                          step="0.1"
+                          value={useQuantities[item.id] || ''}
+                          onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                          className="w-16 border border-gray-300 rounded p-1 text-center"
+                          placeholder="Qty"
+                        />
+                        <select
+                          className="border border-gray-300 rounded p-1 text-sm"
+                          value={useQuantities[item.id] || "0"}
+                          onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                        >
+                          <option value="0">Select</option>
+                          <option value="0.1">0.1 {item.unit}</option>
+                          <option value="0.25">0.25 {item.unit}</option>
+                          <option value="0.5">0.5 {item.unit}</option>
+                          <option value="1">1 {item.unit}</option>
+                          <option value="2">2 {item.unit}</option>
+                        </select>
                         <button
-                          onClick={() => requestUpdate(item.id, -0.5)}
-                          className="bg-amber-100 text-amber-700 p-1 rounded hover:bg-amber-200"
+                          onClick={() => requestUseIngredient(item.id)}
+                          className="bg-amber-100 text-amber-700 p-2 rounded hover:bg-amber-200"
                           title="Use ingredient"
+                          disabled={item.currentStock <= 0}
                         >
-                          <FaMinus size={12} />
-                        </button>
-                        <button
-                          onClick={() => requestUpdate(item.id, 1)}
-                          className="bg-green-100 text-green-700 p-1 rounded hover:bg-green-200"
-                          title="Add ingredient"
-                        >
-                          <FaPlus size={12} />
+                          <FaMinus size={14} />
                         </button>
                       </div>
                     </td>

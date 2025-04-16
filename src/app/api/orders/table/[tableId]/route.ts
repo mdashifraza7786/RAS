@@ -29,7 +29,7 @@ export async function GET(
     }
 
     // Check if table exists
-    const table = await Table.findById(tableId);
+    const table = await (Table as any).findById(tableId);
     if (!table) {
       return NextResponse.json(
         { error: 'Table not found' },
@@ -39,7 +39,7 @@ export async function GET(
 
     // Fetch orders for this table
     // Only include orders that are still active (not completed or cancelled)
-    const orders = await Order.find({
+    const orders = await (Order as any).find({
       table: tableId,
       status: { $nin: ['completed', 'cancelled'] }
     })

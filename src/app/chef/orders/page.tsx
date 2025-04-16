@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   FaSearch, 
@@ -9,107 +9,68 @@ import {
   FaCheckCircle,
   FaExclamationTriangle, 
   FaClock,
-  FaFilter
+  FaFilter,
+  FaSpinner
 } from 'react-icons/fa';
+import { useChef, Order as ChefOrder, OrderItem as ChefOrderItem } from '@/hooks/useChef';
+import { format } from 'date-fns';
 
 // Types
 interface OrderItem {
-  id: number;
+  id: string;
   name: string;
   quantity: number;
   special: string;
+  status: string;
 }
 
 interface Order {
-  id: number;
+  id: string;
+  orderNumber: number;
   table: string;
   items: OrderItem[];
   timeReceived: string;
   priority: 'high' | 'normal';
-  status: 'pending' | 'cooking' | 'ready' | 'delivered';
+  status: 'pending' | 'in-progress' | 'ready' | 'completed' | 'cancelled';
   estimatedTime?: number; // in minutes
 }
-
-// Sample data
-const orders: Order[] = [
-  {
-    id: 1042,
-    table: 'Table 7',
-    items: [
-      { id: 1, name: 'Butter Chicken', quantity: 1, special: 'Extra spicy' },
-      { id: 2, name: 'Garlic Naan', quantity: 2, special: '' },
-      { id: 3, name: 'Veg Biryani', quantity: 1, special: 'No onions' }
-    ],
-    timeReceived: '11:45 AM',
-    priority: 'high',
-    status: 'pending'
-  },
-  {
-    id: 1041,
-    table: 'Table 3',
-    items: [
-      { id: 4, name: 'Masala Dosa', quantity: 2, special: '' },
-      { id: 5, name: 'Sambar', quantity: 2, special: '' }
-    ],
-    timeReceived: '11:40 AM',
-    priority: 'normal',
-    status: 'pending'
-  },
-  {
-    id: 1040,
-    table: 'Table 12',
-    items: [
-      { id: 6, name: 'Paneer Tikka', quantity: 1, special: '' },
-      { id: 7, name: 'Tandoori Roti', quantity: 3, special: '' },
-      { id: 8, name: 'Dal Makhani', quantity: 1, special: 'Less cream' },
-      { id: 9, name: 'Jeera Rice', quantity: 2, special: '' }
-    ],
-    timeReceived: '11:35 AM',
-    priority: 'normal',
-    status: 'cooking',
-    estimatedTime: 12
-  },
-  {
-    id: 1039,
-    table: 'Takeaway',
-    items: [
-      { id: 10, name: 'Chicken Biryani', quantity: 2, special: '' },
-      { id: 11, name: 'Raita', quantity: 1, special: '' }
-    ],
-    timeReceived: '11:30 AM',
-    priority: 'high',
-    status: 'cooking',
-    estimatedTime: 8
-  },
-  {
-    id: 1038,
-    table: 'Table 5',
-    items: [
-      { id: 12, name: 'Malai Kofta', quantity: 1, special: '' },
-      { id: 13, name: 'Butter Naan', quantity: 2, special: '' }
-    ],
-    timeReceived: '11:25 AM',
-    priority: 'normal',
-    status: 'ready'
-  },
-  {
-    id: 1037,
-    table: 'Table 9',
-    items: [
-      { id: 14, name: 'Dal Tadka', quantity: 1, special: '' },
-      { id: 15, name: 'Plain Rice', quantity: 1, special: '' },
-      { id: 16, name: 'Roti', quantity: 4, special: '' }
-    ],
-    timeReceived: '11:20 AM',
-    priority: 'normal',
-    status: 'delivered'
-  }
-];
 
 export default function OrdersQueuePage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'priority'>('newest');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const { orders: chefOrders, loading, error, updateOrderStatus } = useChef();
+  const [orders, setOrders] = useState<Order[]>([]);
+
+  // Transform chef orders to our local format
+  useEffect(() => {
+    if (chefOrders && chefOrders.length > 0) {
+      const formattedOrders = chefOrders.map((order: ChefOrder) => {
+        const tableName = typeof order.table === 'string' 
+          ? order.table 
+          : order.table?.name || 'Unknown Table';
+          
+        return {
+          id: order._id,
+          orderNumber: order.orderNumber,
+          table: tableName,
+          items: order.items.map((item: ChefOrderItem) => ({
+            id: item._id,
+            name: item.menuItem.name,
+            quantity: item.quantity,
+            special: item.notes || '',
+            status: item.status || 'pending'
+          })),
+          timeReceived: format(new Date(order.createdAt), 'h:mm a'),
+          priority: order.specialInstructions ? 'high' : 'normal' as 'high' | 'normal',
+          status: order.status,
+          estimatedTime: Math.max(...order.items.map(item => item.menuItem.preparationTime || 10))
+        };
+      });
+      
+      setOrders(formattedOrders);
+    }
+  }, [chefOrders]);
 
   // Filter and sort orders
   const filteredOrders = orders
@@ -129,7 +90,7 @@ export default function OrdersQueuePage() {
         
         return (
           order.table.toLowerCase().includes(searchLower) ||
-          `Order #${order.id}`.toLowerCase().includes(searchLower) ||
+          `Order #${order.orderNumber}`.toLowerCase().includes(searchLower) ||
           hasMatchingItem
         );
       }
@@ -142,18 +103,18 @@ export default function OrdersQueuePage() {
         return a.priority === 'high' && b.priority !== 'high' ? -1 : 
                b.priority === 'high' && a.priority !== 'high' ? 1 : 0;
       } else {
-        // Convert time strings to comparable values (simple approach for demo)
-        const timeA = a.timeReceived;
-        const timeB = b.timeReceived;
+        // Parse the time strings for comparison
+        const timeA = new Date(a.timeReceived);
+        const timeB = new Date(b.timeReceived);
         return sortOrder === 'newest' ? 
-          timeB.localeCompare(timeA) : 
-          timeA.localeCompare(timeB);
+          (timeB.getTime() - timeA.getTime()) : 
+          (timeA.getTime() - timeB.getTime());
       }
     });
 
   // Get counts by status
   const pendingCount = orders.filter(o => o.status === 'pending').length;
-  const cookingCount = orders.filter(o => o.status === 'cooking').length;
+  const cookingCount = orders.filter(o => o.status === 'in-progress').length;
   const readyCount = orders.filter(o => o.status === 'ready').length;
 
   // Function to determine status badge style
@@ -161,12 +122,14 @@ export default function OrdersQueuePage() {
     switch(status) {
       case 'pending':
         return 'bg-amber-100 text-amber-800';
-      case 'cooking':
+      case 'in-progress':
         return 'bg-orange-100 text-orange-800';
       case 'ready':
         return 'bg-green-100 text-green-800';
-      case 'delivered':
+      case 'completed':
         return 'bg-gray-100 text-gray-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -177,22 +140,45 @@ export default function OrdersQueuePage() {
     switch(status) {
       case 'pending':
         return <FaClipboardList className="text-amber-500" />;
-      case 'cooking':
+      case 'in-progress':
         return <FaFireAlt className="text-orange-500" />;
       case 'ready':
         return <FaCheckCircle className="text-green-500" />;
-      case 'delivered':
+      case 'completed':
         return <FaClock className="text-gray-500" />;
+      case 'cancelled':
+        return <FaExclamationTriangle className="text-red-500" />;
       default:
         return null;
     }
   };
 
   // Function to handle status change
-  const handleStatusChange = (orderId: number, newStatus: 'pending' | 'cooking' | 'ready' | 'delivered') => {
-    console.log(`Changing order #${orderId} status to ${newStatus}`);
-    // This would update state in a real application
+  const handleStatusChange = async (orderId: string, newStatus: 'in-progress' | 'ready') => {
+    try {
+      await updateOrderStatus(orderId, newStatus);
+    } catch (error) {
+      console.error(`Error changing order #${orderId} status to ${newStatus}:`, error);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <FaSpinner className="animate-spin text-4xl text-indigo-600 mr-3" />
+        <p className="text-lg">Loading orders...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 bg-red-50 rounded-lg">
+        <h2 className="text-lg font-bold text-red-800">Error Loading Orders</h2>
+        <p className="text-red-700">There was a problem loading the orders. Please try again later.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -275,9 +261,10 @@ export default function OrdersQueuePage() {
               >
                 <option value="all">All Statuses</option>
                 <option value="pending">Pending</option>
-                <option value="cooking">Cooking</option>
+                <option value="in-progress">Cooking</option>
                 <option value="ready">Ready</option>
-                <option value="delivered">Delivered</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
               </select>
             </div>
             
@@ -308,11 +295,11 @@ export default function OrdersQueuePage() {
                     <span className={`h-3 w-3 rounded-full mr-2 ${
                       order.priority === 'high' ? 'bg-red-500' : 'bg-amber-500'
                     }`}></span>
-                    <h3 className="text-lg font-semibold mr-3">Order #{order.id}</h3>
+                    <h3 className="text-lg font-semibold mr-3">Order #{order.orderNumber}</h3>
                     <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadgeStyle(order.status)}`}>
                       <div className="flex items-center">
                         <span className="mr-1">{getStatusIcon(order.status)}</span>
-                        <span className="capitalize">{order.status}</span>
+                        <span className="capitalize">{order.status.replace('-', ' ')}</span>
                       </div>
                     </span>
                   </div>
@@ -340,6 +327,7 @@ export default function OrdersQueuePage() {
                           {item.special && (
                             <div className="text-sm text-red-600">{item.special}</div>
                           )}
+                          <div className="text-xs text-gray-500 capitalize">{item.status}</div>
                         </div>
                       </li>
                     ))}
@@ -349,7 +337,7 @@ export default function OrdersQueuePage() {
                 <div className="flex flex-wrap gap-2">
                   {order.status === 'pending' && (
                     <button 
-                      onClick={() => handleStatusChange(order.id, 'cooking')}
+                      onClick={() => handleStatusChange(order.id, 'in-progress')}
                       className="px-4 py-2 bg-amber-500 text-white rounded-md font-medium flex items-center hover:bg-amber-600"
                     >
                       <FaFireAlt className="mr-2" />
@@ -357,7 +345,7 @@ export default function OrdersQueuePage() {
                     </button>
                   )}
                   
-                  {order.status === 'cooking' && (
+                  {order.status === 'in-progress' && (
                     <>
                       <div className="flex items-center text-orange-700 mr-4">
                         <FaClock className="mr-1" />
@@ -371,16 +359,6 @@ export default function OrdersQueuePage() {
                         Mark as Ready
                       </button>
                     </>
-                  )}
-                  
-                  {order.status === 'ready' && (
-                    <button 
-                      onClick={() => handleStatusChange(order.id, 'delivered')}
-                      className="px-4 py-2 bg-gray-500 text-white rounded-md font-medium flex items-center hover:bg-gray-600"
-                    >
-                      <FaClock className="mr-2" />
-                      Mark as Delivered
-                    </button>
                   )}
                   
                   <Link

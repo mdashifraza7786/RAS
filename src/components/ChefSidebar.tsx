@@ -5,7 +5,7 @@ import {
   FaClipboardList, 
   FaHamburger,
   FaClipboardCheck,
-  
+  FaBell 
 } from 'react-icons/fa';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -69,20 +69,14 @@ const ChefSidebar = () => {
           <NavItem 
             icon={<FaHamburger />} 
             label="Menu Items" 
-            href="/chef/menu" 
-            isActive={pathname?.startsWith('/chef/menu')}
+            href="/chef/menu-items" 
+            isActive={pathname?.startsWith('/chef/menu-items')}
           />
           <NavItem 
             icon={<FaUtensils />} 
             label="Inventory" 
             href="/chef/inventory" 
             isActive={pathname?.startsWith('/chef/inventory')}
-          />
-          <NavItem 
-            icon={<FaClipboardCheck />} 
-            label="Recipe Library" 
-            href="/chef/recipes" 
-            isActive={pathname?.startsWith('/chef/recipes')}
           />
         </ul>
       </div>

@@ -1,18 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FaSearch, 
   FaEdit, 
   FaPlus, 
   FaEye,
   FaTimes,
-  FaCheck 
+  FaCheck,
+  FaSpinner
 } from 'react-icons/fa';
+import axios from 'axios';
+import { API_URL } from '@/config/constants';
 
 // Types
 interface MenuItem {
-  id: number;
+  id: string;
   name: string;
   category: string;
   price: number;
@@ -25,90 +28,9 @@ interface MenuItem {
   available: boolean;
 }
 
-// Sample data
-const menuItemsData: MenuItem[] = [
-  {
-    id: 1,
-    name: 'Butter Chicken',
-    category: 'Main Course',
-    price: 250,
-    description: 'Tender chicken cooked in a rich and creamy tomato-based sauce.',
-    ingredients: ['Chicken', 'Butter', 'Cream', 'Tomato puree', 'Spices'],
-    preparationTime: 20,
-    isSpecial: true,
-    isVegetarian: false,
-    image: '/images/butter-chicken.jpg',
-    available: true
-  },
-  {
-    id: 2,
-    name: 'Paneer Tikka',
-    category: 'Appetizers',
-    price: 180,
-    description: 'Marinated cottage cheese cubes grilled to perfection.',
-    ingredients: ['Paneer', 'Yogurt', 'Bell peppers', 'Onions', 'Spices'],
-    preparationTime: 15,
-    isSpecial: false,
-    isVegetarian: true,
-    image: '/images/paneer-tikka.jpg',
-    available: true
-  },
-  {
-    id: 3,
-    name: 'Vegetable Biryani',
-    category: 'Rice',
-    price: 200,
-    description: 'Fragrant basmati rice cooked with mixed vegetables and aromatic spices.',
-    ingredients: ['Basmati rice', 'Mixed vegetables', 'Saffron', 'Ghee', 'Spices'],
-    preparationTime: 25,
-    isSpecial: false,
-    isVegetarian: true,
-    image: '/images/veg-biryani.jpg',
-    available: true
-  },
-  {
-    id: 4,
-    name: 'Chicken Tikka',
-    category: 'Appetizers',
-    price: 220,
-    description: 'Marinated chicken pieces grilled in a tandoor.',
-    ingredients: ['Chicken', 'Yogurt', 'Lemon juice', 'Spices'],
-    preparationTime: 15,
-    isSpecial: false,
-    isVegetarian: false,
-    image: '/images/chicken-tikka.jpg',
-    available: true
-  },
-  {
-    id: 5,
-    name: 'Gulab Jamun',
-    category: 'Desserts',
-    price: 120,
-    description: 'Deep-fried milk solids soaked in sugar syrup.',
-    ingredients: ['Milk powder', 'Flour', 'Sugar', 'Cardamom', 'Rose water'],
-    preparationTime: 10,
-    isSpecial: false,
-    isVegetarian: true,
-    image: '/images/gulab-jamun.jpg',
-    available: true
-  },
-  {
-    id: 6,
-    name: 'Malai Kofta',
-    category: 'Main Course',
-    price: 220,
-    description: 'Potato and paneer dumplings served in a creamy sauce.',
-    ingredients: ['Potato', 'Paneer', 'Cream', 'Cashews', 'Spices'],
-    preparationTime: 25,
-    isSpecial: false,
-    isVegetarian: true,
-    image: '/images/malai-kofta.jpg',
-    available: false
-  }
-];
-
 export default function MenuItemsPage() {
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(menuItemsData);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<string[]>(['All']);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [availabilityFilter, setAvailabilityFilter] = useState('All');
@@ -118,23 +40,42 @@ export default function MenuItemsPage() {
   }>({ key: 'name', direction: 'asc' });
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   
-  const categories = ['All', ...new Set(menuItems.map(item => item.category))];
+  // Fetch menu items on component mount and when filters change
+  useEffect(() => {
+    const fetchMenuItems = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Build query params
+        const params = new URLSearchParams();
+        if (searchTerm) params.append('search', searchTerm);
+        if (categoryFilter !== 'All') params.append('category', categoryFilter);
+        if (availabilityFilter !== 'All') params.append('availability', availabilityFilter);
+        
+        const response = await axios.get(`${API_URL}/chef/menu?${params.toString()}`);
+        setMenuItems(response.data.menuItems);
+        
+        // Only update categories on initial load or if they've changed
+        if (response.data.categories && categories.length <= 1) {
+          setCategories(response.data.categories);
+        }
+      } catch (err) {
+        console.error('Error fetching menu items:', err);
+        setError(err as Error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchMenuItems();
+  }, [searchTerm, categoryFilter, availabilityFilter]);
   
-  // Filter menu items
-  const filteredItems = menuItems.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.category.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesCategory = categoryFilter === 'All' || item.category === categoryFilter;
-    
-    const matchesAvailability = availabilityFilter === 'All' || 
-      (availabilityFilter === 'Available' && item.available) || 
-      (availabilityFilter === 'Unavailable' && !item.available);
-    
-    return matchesSearch && matchesCategory && matchesAvailability;
-  });
+  // Filter menu items (client-side filtering for additional filtering)
+  const filteredItems = menuItems;
   
   // Sort menu items
   const sortedItems = [...filteredItems].sort((a, b) => {
@@ -152,13 +93,34 @@ export default function MenuItemsPage() {
   });
   
   // Toggle availability
-  const toggleAvailability = (id: number) => {
-    setMenuItems(prev => prev.map(item => {
-      if (item.id === id) {
-        return { ...item, available: !item.available };
+  const toggleAvailability = async (id: string) => {
+    try {
+      const itemToUpdate = menuItems.find(item => item.id === id);
+      if (!itemToUpdate) return;
+      
+      const newAvailability = !itemToUpdate.available;
+      
+      // Update in the backend with the new endpoint path
+      await axios.patch(`${API_URL}/chef/menu-items/${id}/availability`, {
+        available: newAvailability
+      });
+      
+      // Update in local state
+      setMenuItems(prev => prev.map(item => {
+        if (item.id === id) {
+          return { ...item, available: newAvailability };
+        }
+        return item;
+      }));
+      
+      // Update selected item if it's the same one
+      if (selectedItem && selectedItem.id === id) {
+        setSelectedItem({ ...selectedItem, available: newAvailability });
       }
-      return item;
-    }));
+    } catch (err) {
+      console.error(`Error updating availability for item ${id}:`, err);
+      // Show error message here
+    }
   };
   
   // View item details
@@ -172,6 +134,27 @@ export default function MenuItemsPage() {
     setIsViewModalOpen(false);
     setSelectedItem(null);
   };
+
+  // Loading state
+  if (loading && menuItems.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <FaSpinner className="animate-spin text-4xl text-indigo-600 mr-3" />
+        <p className="text-lg">Loading menu items...</p>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error && menuItems.length === 0) {
+    return (
+      <div className="p-6 bg-red-50 rounded-lg mx-auto max-w-4xl mt-8">
+        <h2 className="text-lg font-bold text-red-800">Error Loading Menu Items</h2>
+        <p className="text-red-700">There was a problem loading the menu. Please try again later.</p>
+        <p className="text-sm text-red-600 mt-2">{error.message}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -217,9 +200,6 @@ export default function MenuItemsPage() {
               <option value="Unavailable">Unavailable</option>
             </select>
             
-            <button className="bg-indigo-600 text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-indigo-700">
-              <FaPlus /> Add New Item
-            </button>
           </div>
         </div>
       </div>
@@ -276,21 +256,15 @@ export default function MenuItemsPage() {
                       <FaEye size={14} />
                     </button>
                     <button
-                      className="bg-amber-100 text-amber-700 p-2 rounded hover:bg-amber-200"
-                      title="Edit item"
-                    >
-                      <FaEdit size={14} />
-                    </button>
-                    <button
                       onClick={() => toggleAvailability(item.id)}
                       className={`${
                         item.available 
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                          : 'bg-red-100 text-red-700 hover:bg-red-200'
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                          : 'bg-green-100 text-green-700 hover:bg-green-200' 
                       } p-2 rounded`}
                       title={item.available ? 'Mark as unavailable' : 'Mark as available'}
                     >
-                      {item.available ? <FaCheck size={14} /> : <FaTimes size={14} />}
+                      {item.available ? <FaTimes size={14} /> : <FaCheck size={14} />}
                     </button>
                   </div>
                 </div>
