@@ -6,7 +6,6 @@ import {
   FaUtensils, 
   FaClipboardList, 
   FaReceipt, 
-  FaUsers, 
   FaBell,
   FaClock,
   FaShoppingCart,

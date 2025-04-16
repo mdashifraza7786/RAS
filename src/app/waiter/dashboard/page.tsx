@@ -7,7 +7,6 @@ import {
   FaMoneyBillWave, 
   FaBell, 
   FaClipboardList,
-  FaUsers,
   FaTable,
   FaCalendarAlt,
   FaSpinner

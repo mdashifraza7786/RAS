@@ -1,6 +1,8 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { IMenuItem } from './MenuItem';
 import { ITable } from './Table';
+import { ICustomer } from './Customer';
+import Counter from './Counter';
 
 export interface OrderItem {
   menuItem: IMenuItem['_id'];
@@ -22,6 +24,8 @@ export interface IOrder extends Document {
   paymentStatus: 'unpaid' | 'paid' | 'refunded';
   paymentMethod?: 'cash' | 'card' | 'upi';
   customerName?: string;
+  customerPhone?: string;
+  customer?: ICustomer['_id'];
   specialInstructions?: string;
   waiter?: string; // Reference to user ID of waiter
   createdAt: Date;
@@ -30,7 +34,7 @@ export interface IOrder extends Document {
 
 const orderItemSchema = new Schema<OrderItem>({
   menuItem: {
-    type: Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId as any,
     ref: 'MenuItem',
     required: true
   },
@@ -65,7 +69,7 @@ const orderSchema = new Schema<IOrder>(
       unique: true
     },
     table: {
-      type: Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId as any,
       ref: 'Table',
       required: true
     },
@@ -102,11 +106,18 @@ const orderSchema = new Schema<IOrder>(
     customerName: {
       type: String
     },
+    customerPhone: {
+      type: String
+    },
+    customer: {
+      type: Schema.Types.ObjectId as any,
+      ref: 'Customer'
+    },
     specialInstructions: {
       type: String
     },
     waiter: {
-      type: Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId as any,
       ref: 'User'
     }
   },
@@ -117,19 +128,26 @@ const orderSchema = new Schema<IOrder>(
 
 // Add counter for generating unique sequential order numbers
 orderSchema.statics.getNextOrderNumber = async function() {
-  const counter = await mongoose.model('Counter').findOneAndUpdate(
+  // Ensure Counter model exists
+  const CounterModel = mongoose.models.Counter || mongoose.model('Counter', new mongoose.Schema({
+    name: { type: String, required: true, unique: true },
+    value: { type: Number, default: 0 }
+  }));
+  
+  const counter = await (CounterModel as any).findOneAndUpdate(
     { name: 'orderNumber' },
     { $inc: { value: 1 } },
     { new: true, upsert: true }
   );
+  
   return counter.value;
 };
 
 // Pre-save hook to handle calculations and validations
-orderSchema.pre('save', function(next) {
+orderSchema.pre('save', function(this: any, next) {
   // Calculate totals
   if (this.isModified('items')) {
-    this.subtotal = this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    this.subtotal = this.items.reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0);
     this.tax = Math.round(this.subtotal * 0.18 * 100) / 100; // 18% tax
     this.total = Math.round((this.subtotal + this.tax) * 100) / 100;
   }
@@ -137,7 +155,12 @@ orderSchema.pre('save', function(next) {
   next();
 });
 
+// Add types to the static methods
+interface OrderModel extends mongoose.Model<IOrder> {
+  getNextOrderNumber(): Promise<number>;
+}
+
 // Check if model already exists to prevent overwrite during hot reload in development
-const Order = mongoose.models.Order || mongoose.model<IOrder>('Order', orderSchema);
+const Order = (mongoose.models.Order || mongoose.model<IOrder, OrderModel>('Order', orderSchema)) as OrderModel;
 
 export default Order; 

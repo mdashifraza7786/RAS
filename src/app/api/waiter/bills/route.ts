@@ -5,6 +5,7 @@ import connectToDatabase from '@/lib/mongodb';
 import mongoose from 'mongoose';
 import Bill from '@/models/Bill';
 import Order from '@/models/Order';
+import Customer from '@/models/Customer';
 
 // GET /api/waiter/bills - Get all bills (with pagination and filtering)
 export async function GET(request: NextRequest) {
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
       console.log('Search params:', Object.fromEntries(searchParams.entries()));
       
       // Only fetch bills created by this waiter without pagination
-      const bills = await Bill.find({ waiter: session.user.id })
+      const bills = await (Bill as any).find({ waiter: session.user.id })
         .sort({ createdAt: -1 })
         .populate('order', 'orderNumber items status')
         .populate('table', 'number name');
@@ -82,10 +83,10 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
     
     // Get total count for pagination
-    const total = await Bill.countDocuments(filters);
+    const total = await (Bill as any).countDocuments(filters);
     
     // Fetch bills with pagination and sorting
-    const bills = await Bill.find(filters)
+    const bills = await (Bill as any).find(filters)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -112,15 +113,14 @@ export async function GET(request: NextRequest) {
 // POST /api/waiter/bills - Create a new bill
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
     const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if the user is a waiter
-    if (session.user.role !== 'waiter') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    
+    // Check if user is authenticated with role of waiter
+    if (!session || session.user.role !== 'waiter') {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
     
     await connectToDatabase();
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Check if order exists
-    const order = await Order.findById(data.order);
+    const order = await (Order as any).findById(data.order);
     if (!order) {
       return NextResponse.json(
         { error: 'Order not found' },
@@ -143,72 +143,54 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Check if a bill already exists for this order
-    const existingBill = await Bill.findOne({ order: data.order });
+    // Check if bill already exists for this order
+    const existingBill = await (Bill as any).findOne({ order: data.order });
     if (existingBill) {
       return NextResponse.json(
-        { error: 'A bill already exists for this order' },
+        { error: 'A bill already exists for this order', bill: existingBill },
         { status: 400 }
       );
     }
     
-    // Make sure the order is in a billable state
-    if (order.status !== 'served' && order.status !== 'completed') {
-      return NextResponse.json(
-        { error: 'Order must be served or completed before creating a bill' },
-        { status: 400 }
-      );
-    }
+    // Get next bill number 
+    const billNumber = await (Bill as any).getNextBillNumber();
     
-    // Ensure subtotal and tax are set
-    if (!data.subtotal) {
-      data.subtotal = order.subtotal;
-    }
-    
-    if (!data.tax) {
-      data.tax = order.tax;
-    }
-    
-    // Calculate total with tip and discount
-    const subtotal = data.subtotal || 0;
-    const tax = data.tax || 0;
-    const tip = data.tip || 0;
-    const discount = data.discount || 0;
-    const total = subtotal + tax + tip - discount;
-    
-    // Get the next bill number
-    const Counter = mongoose.model('Counter');
-    const counter = await Counter.findOneAndUpdate(
-      { name: 'billNumber' },
-      { $inc: { value: 1 } },
-      { new: true, upsert: true }
-    );
-    const billNumber = counter.value;
-    
-    // Create the bill document
+    // Create bill data
     const billData = {
       ...data,
       billNumber,
-      total,
-      waiter: session.user.id,
-      table: order.table,
-      paymentStatus: data.paymentStatus || 'pending'
+      // Use order data if not provided in request
+      subtotal: data.subtotal || order.subtotal,
+      tax: data.tax || order.tax,
+      total: data.total || order.total,
+      // Include order's customer information if available
+      customerName: data.customerName || order.customerName,
+      customerPhone: data.customerPhone || order.customerPhone,
+      customer: data.customer || order.customer,
+      waiter: session.user.id
     };
     
-    const bill = await Bill.create(billData);
+    // Create the bill
+    const bill = await (Bill as any).create(billData);
     
-    // Update order payment status if bill is marked as paid
-    if (data.paymentStatus === 'paid') {
-      order.paymentStatus = 'paid';
-      order.paymentMethod = data.paymentMethod;
-      await order.save();
+    // Update order payment status to paid
+    order.paymentStatus = 'paid';
+    order.paymentMethod = data.paymentMethod;
+    order.status = 'completed';
+    await order.save();
+    
+    // If a customer ID is associated with this bill, update their stats
+    if (bill.customer) {
+      const customer = await (Customer as any).findById(bill.customer);
+      if (customer) {
+        customer.visits = (customer.visits || 0) + 1;
+        customer.totalSpent = (customer.totalSpent || 0) + bill.total;
+        customer.lastVisit = new Date();
+        await customer.save();
+      }
     }
     
-    // Return the created bill
-    return NextResponse.json({
-      message: 'Bill created successfully',
-      bill
-    }, { status: 201 });
+    return NextResponse.json(bill, { status: 201 });
   } catch (error) {
     console.error('Error creating bill:', error);
     return NextResponse.json(

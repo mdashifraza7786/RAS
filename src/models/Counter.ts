@@ -13,7 +13,7 @@ const counterSchema = new Schema<ICounter>({
   },
   value: {
     type: Number,
-    default: 1
+    default: 0
   }
 });
 

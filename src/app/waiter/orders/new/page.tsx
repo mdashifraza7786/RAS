@@ -32,6 +32,9 @@ export default function NewOrderPage() {
   }>>([]);
   
   const [step, setStep] = useState(1);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
   
   // Force showAll filter on load to ensure we see all tables
   useEffect(() => {
@@ -179,6 +182,54 @@ export default function NewOrderPage() {
       const tax = subtotal * 0.1; // Assuming 10% tax
       const total = subtotal + tax;
       
+      // If customer details are provided, create or find a customer
+      let customerId = null;
+      if (customerName && customerPhone) {
+        setIsCreatingCustomer(true);
+        try {
+          // Try to create a new customer
+          console.log("Attempting to create/find customer with name:", customerName, "and phone:", customerPhone);
+          const customerResponse = await fetch('/api/customers', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              name: customerName,
+              phone: customerPhone,
+              visits: 1,
+              totalSpent: 0,
+              lastVisit: new Date().toISOString()
+            })
+          });
+          
+          const customerData = await customerResponse.json();
+          console.log("Customer API response:", customerData);
+          
+          if (customerResponse.ok) {
+            // New customer created successfully
+            customerId = customerData._id;
+            console.log("New customer created with ID:", customerId);
+          } else if (customerData.customer && customerData.customer._id) {
+            // Customer already exists with this phone number
+            customerId = customerData.customer._id;
+            console.log("Found existing customer with ID:", customerId);
+          } else {
+            console.error("Error response from customer API:", customerData);
+            if (customerData.error) {
+              toast.error(`Customer error: ${customerData.error}`);
+            }
+          }
+        } catch (err) {
+          console.error('Error creating/finding customer:', err);
+          toast.error("Failed to process customer information. Continuing with order.");
+          // Continue with order creation even if customer creation fails
+        } finally {
+          setIsCreatingCustomer(false);
+        }
+      }
+      
       const orderData = {
         table: selectedTable,
         items: orderItems.map(item => ({
@@ -194,10 +245,13 @@ export default function NewOrderPage() {
         tax,
         total,
         paymentStatus: 'unpaid' as const,
-        customerCount
+        customerCount,
+        customerName: customerName || undefined,
+        customerPhone: customerPhone || undefined,
+        customer: customerId || undefined
       };
       
-      console.log("Submitting order to waiter-specific API endpoint");
+      console.log("Submitting order data:", JSON.stringify(orderData));
       
       // Use the new waiter-specific endpoint with credentials
       const response = await fetch('/api/waiter/orders', {
@@ -209,13 +263,14 @@ export default function NewOrderPage() {
         body: JSON.stringify(orderData)
       });
       
+      const responseData = await response.json();
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('API Error Response:', errorData);
-        throw new Error(errorData.error || `Order creation failed with status ${response.status}`);
+        console.error('API Error Response:', responseData);
+        throw new Error(responseData.error || `Order creation failed with status ${response.status}`);
       }
       
-      const newOrder = await response.json();
+      const newOrder = responseData;
       console.log("Order created successfully:", newOrder);
       toast.success("Order placed successfully");
       
@@ -320,6 +375,36 @@ export default function NewOrderPage() {
               onChange={(e) => setCustomerCount(Math.max(1, parseInt(e.target.value) || 1))}
               className="w-24 p-2 border border-gray-300 rounded-md"
             />
+          </div>
+          
+          {/* Customer Information */}
+          <div className="mb-8 bg-white p-4 rounded-lg border border-gray-200">
+            <h3 className="text-md font-medium mb-3">Customer Information (Optional)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="Enter customer name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="Enter phone number"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              * New customer will be automatically created if phone number doesn't exist in database
+            </p>
           </div>
           
           <div className="flex justify-between">

@@ -2,7 +2,6 @@
 import { 
   FaThLarge, 
   FaUtensils, 
-  FaUsers, 
   FaClipboardList, 
   FaReceipt
 } from 'react-icons/fa';
@@ -69,12 +68,6 @@ const WaiterSidebar = () => {
             label="Bills" 
             href="/waiter/bills" 
             isActive={pathname?.startsWith('/waiter/bills')}
-          />
-          <NavItem 
-            icon={<FaUsers />} 
-            label="Customers" 
-            href="/waiter/customers" 
-            isActive={pathname?.startsWith('/waiter/customers')}
           />
         </ul>
       </div>

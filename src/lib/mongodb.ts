@@ -28,8 +28,23 @@ if (process.env.NODE_ENV === 'development') {
   global.mongoose = cached;
 }
 
+// Ensure Counter model is defined
+function initializeCounter() {
+  // Define schema if it doesn't exist already
+  if (!mongoose.models.Counter) {
+    const CounterSchema = new mongoose.Schema({
+      name: { type: String, required: true, unique: true },
+      value: { type: Number, default: 0 }
+    });
+    mongoose.model('Counter', CounterSchema);
+    console.log('Counter model initialized');
+  }
+}
+
 async function connectToDatabase() {
   if (cached.conn) {
+    // Ensure Counter model is initialized even if connection is cached
+    initializeCounter();
     return cached.conn;
   }
 
@@ -45,6 +60,10 @@ async function connectToDatabase() {
 
   try {
     cached.conn = await cached.promise;
+    
+    // Initialize Counter model
+    initializeCounter();
+    
   } catch (e) {
     cached.promise = null;
     throw e;

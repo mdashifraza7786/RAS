@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { IOrder } from './Order';
+import { ICustomer } from './Customer';
 
 export interface IBill extends Document {
   billNumber: number;
@@ -13,6 +14,7 @@ export interface IBill extends Document {
   paymentStatus: 'paid' | 'unpaid' | 'refunded';
   customerName?: string;
   customerPhone?: string;
+  customer?: ICustomer['_id']; // Reference to customer ID
   waiter?: string; // Reference to user ID of waiter
   createdAt: Date;
   updatedAt: Date;
@@ -71,8 +73,12 @@ const billSchema = new Schema<IBill>(
     customerPhone: {
       type: String
     },
+    customer: {
+      type: Schema.Types.ObjectId as any,
+      ref: 'Customer'
+    },
     waiter: {
-      type: Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId as any,
       ref: 'User'
     }
   },
@@ -92,7 +98,7 @@ billSchema.statics.getNextBillNumber = async function() {
 };
 
 // Pre-save hook to recalculate the total
-billSchema.pre('save', function(next) {
+billSchema.pre('save', function(this: any, next) {
   if (this.isModified('subtotal') || this.isModified('tax') || this.isModified('tip') || this.isModified('discount')) {
     this.total = this.subtotal + this.tax + (this.tip || 0) - (this.discount || 0);
     this.total = Math.round(this.total * 100) / 100; // Round to 2 decimal places

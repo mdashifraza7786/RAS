@@ -6,7 +6,7 @@ import Order from '@/models/Order';
 import mongoose from 'mongoose';
 
 // DELETE /api/waiter/orders/[id]/removeItem - Remove an item from an order
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, context: { params: { id: string } }) {
     try {
         const session = await getServerSession(authOptions);
 
@@ -37,7 +37,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
         // Connect to the database
         await connectToDatabase();
 
-        const orderId = params.id;
+        const orderId = context.params.id;
         
         // Check if order exists using mongoose model directly
         const OrderModel = mongoose.models.Order;

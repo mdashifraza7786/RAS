@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import Customer from '@/models/Customer';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 // GET /api/customers - Get all customers (with optional filters)
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     
     // Check if user is authenticated with appropriate role (manager or waiter)
     if (!session || (session.user.role !== 'manager' && session.user.role !== 'waiter')) {
@@ -47,10 +48,10 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
     
     // Get total count for pagination
-    const total = await Customer.countDocuments(filters);
+    const total = await (Customer as any).countDocuments(filters);
     
     // Fetch customers with pagination and sorting
-    const customers = await Customer.find(filters)
+    const customers = await (Customer as any).find(filters)
       .sort({ lastVisit: -1 })
       .skip(skip)
       .limit(limit);
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
 // POST /api/customers - Create a new customer
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     
     // Check if user is authenticated with appropriate role (manager or waiter)
     if (!session || (session.user.role !== 'manager' && session.user.role !== 'waiter')) {
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
     await connectToDatabase();
     const data = await request.json();
     
-    // Validate required fields
+    // Validate required fields - only name and phone
     if (!data.name || !data.phone) {
       return NextResponse.json(
         { error: 'Name and phone are required' },
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Check if customer with this phone already exists
-    const existingCustomer = await Customer.findOne({ phone: data.phone });
+    const existingCustomer = await (Customer as any).findOne({ phone: data.phone });
     if (existingCustomer) {
       return NextResponse.json(
         { error: 'A customer with this phone number already exists', customer: existingCustomer },
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Create the customer
-    const customer = await Customer.create(data);
+    const customer = await (Customer as any).create(data);
     
     return NextResponse.json(customer, { status: 201 });
   } catch (error) {

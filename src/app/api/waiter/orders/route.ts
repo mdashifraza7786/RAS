@@ -4,7 +4,9 @@ import { authOptions } from '@/lib/auth';
 import connectToDatabase from '@/lib/mongodb';
 import Order from '@/models/Order';
 import Table from '@/models/Table';
+import Customer from '@/models/Customer';
 import mongoose from 'mongoose';
+import { IOrder } from '@/models/Order';
 
 // GET /api/waiter/orders - Get waiter's orders
 export async function GET(req: NextRequest) {
@@ -48,7 +50,7 @@ export async function GET(req: NextRequest) {
     console.log(`Found ${total} orders matching filter`);
 
     // Fetch orders with pagination
-    const orders = await Order.find(filter)
+    const orders = await (Order as any).find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -77,35 +79,25 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/waiter/orders - Create a new order
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    console.log("Waiter API: Order creation started");
-    
-    // Check authentication
+    console.log("Starting order creation process");
     const session = await getServerSession(authOptions);
     
-    if (!session) {
-      console.log("Waiter API: No session found");
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Check if user is authenticated with role waiter
+    if (!session || !session.user || session.user.role !== 'waiter') {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
-
-    // Check if the user is a waiter
-    if (session.user.role !== 'waiter') {
-      console.log("Waiter API: User role is not waiter, found:", session.user.role);
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    // Connect to the database
-    await connectToDatabase();
-
-    // Get waiterId from the session
-    const waiterId = session.user.id;
-    console.log("Waiter API: Processing order for waiter ID:", waiterId);
     
-    // Parse request body
-    const data = await req.json();
-    console.log("Waiter API: Received order data:", JSON.stringify(data));
-
+    await connectToDatabase();
+    console.log("Connected to database");
+    
+    // Parse the request body
+    const data = await request.json();
+    
     // Validate required fields
     if (!data.table || !data.items || !data.items.length) {
       return NextResponse.json(
@@ -113,9 +105,9 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Find the table
-    const table = await Table.findById(data.table);
+    
+    // Get table
+    const table = await (Table as any).findById(data.table);
     if (!table) {
       return NextResponse.json(
         { error: 'Table not found' },
@@ -123,60 +115,73 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Check if the table is assigned to this waiter if it's an assigned table
-    if (table.assignedTo && table.assignedTo.toString() !== waiterId) {
-      console.log(`Waiter API: Table ${table._id} is assigned to ${table.assignedTo}, not to the current waiter ${waiterId}`);
-      // Still allow the order but log it
+    try {
+      console.log("Generating order number");
+      // Generate unique order number
+      const orderNumber = await Order.getNextOrderNumber();
+      console.log("Generated order number:", orderNumber);
+      
+      // Calculate totals
+      const subtotal = data.items.reduce(
+        (sum: number, item: any) => sum + (item.price * item.quantity), 
+        0
+      );
+      const tax = Math.round(subtotal * 0.10 * 100) / 100; // 10% tax
+      const total = Math.round((subtotal + tax) * 100) / 100;
+      
+      // Create order with calculated values
+      const orderData = {
+        ...data,
+        orderNumber,
+        subtotal,
+        tax,
+        total,
+        status: 'pending',
+        paymentStatus: 'unpaid',
+        waiter: session?.user.id || null
+      };
+      
+      console.log("Creating order with data:", JSON.stringify(orderData));
+      // Create the order
+      const order = await (Order as any).create(orderData);
+      console.log("Order created successfully:", order._id);
+      
+      // Update table status to occupied if it's not already
+      if (table.status === 'available') {
+        table.status = 'occupied';
+        await table.save();
+        console.log("Table status updated to occupied");
+      }
+      
+      // If this order has customer information, update the customer's stats
+      if (order.customer) {
+        try {
+          console.log("Updating customer stats for customer:", order.customer);
+          const customer = await (Customer as any).findById(order.customer);
+          if (customer) {
+            // Increment visits
+            customer.visits += 1;
+            // Update last visit date
+            customer.lastVisit = new Date();
+            await customer.save();
+            console.log("Customer stats updated successfully");
+          }
+        } catch (error) {
+          console.error('Error updating customer stats:', error);
+          // Continue even if this fails
+        }
+      }
+      
+      return NextResponse.json(order, { status: 201 });
+    } catch (error) {
+      console.error('Error in order creation process:', error);
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Failed to process order' },
+        { status: 500 }
+      );
     }
-
-    // Calculate subtotal, tax, and total
-    const subtotal = data.items.reduce(
-      (sum: number, item: any) => sum + (item.price * item.quantity),
-      0
-    );
-    const tax = Math.round(subtotal * 0.10 * 100) / 100; // 10% tax
-    const total = Math.round((subtotal + tax) * 100) / 100;
-
-    // Get the next order number
-    const Counter = mongoose.models.Counter || mongoose.model('Counter', new mongoose.Schema({
-      name: { type: String, required: true, unique: true },
-      value: { type: Number, default: 0 }
-    }));
-    
-    const counter = await Counter.findOneAndUpdate(
-      { name: 'orderNumber' },
-      { $inc: { value: 1 } },
-      { new: true, upsert: true }
-    );
-    const orderNumber = counter.value;
-    console.log("Waiter API: Generated order number:", orderNumber);
-
-    // Create order with calculated values
-    const orderData = {
-      ...data,
-      orderNumber,
-      subtotal,
-      tax,
-      total,
-      status: 'pending',
-      paymentStatus: 'unpaid',
-      waiter: waiterId // Ensure waiter ID is set from the session
-    };
-    
-    console.log("Waiter API: Final order data:", JSON.stringify(orderData));
-    const order = await Order.create(orderData);
-    console.log("Waiter API: Order created successfully with ID:", order._id);
-
-    // Update table status to occupied if currently available
-    if (table.status === 'available') {
-      table.status = 'occupied';
-      await table.save();
-      console.log("Waiter API: Updated table status to occupied");
-    }
-
-    return NextResponse.json(order, { status: 201 });
   } catch (error) {
-    console.error('Error creating waiter order:', error);
+    console.error('Error creating order:', error);
     return NextResponse.json(
       { error: 'Failed to create order' },
       { status: 500 }

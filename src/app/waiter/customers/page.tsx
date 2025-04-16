@@ -3,15 +3,10 @@
 import React, { useState } from 'react';
 import { 
   FaUser, 
-  FaUserPlus, 
   FaSearch, 
-  FaEdit, 
   FaCalendarAlt,
   FaEnvelope,
   FaPhone,
-  FaPlus,
-  FaRegStar,
-  FaStar,
   FaSyncAlt
 } from 'react-icons/fa';
 import Link from 'next/link';
@@ -134,21 +129,12 @@ const initialCustomers: Customer[] = [
 
 export default function WaiterCustomersPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [showAddCustomer, setShowAddCustomer] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    preferences: '',
-    notes: ''
-  });
   
   // Use customers hook with search filter
   const { 
     customers, 
     loading, 
     error, 
-    createCustomer,
     fetchCustomers
   } = useCustomers({ name: searchTerm });
   
@@ -156,34 +142,6 @@ export default function WaiterCustomersPage() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     fetchCustomers({ name: searchTerm });
-  };
-  
-  // Handler for adding a customer
-  const handleAddCustomer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!newCustomer.name || !newCustomer.phone) return;
-    
-    try {
-      await createCustomer({
-        ...newCustomer,
-        visits: 1,
-        totalSpent: 0,
-        lastVisit: new Date().toISOString()
-      });
-      
-      // Reset form and close modal
-      setNewCustomer({
-        name: '',
-        phone: '',
-        email: '',
-        preferences: '',
-        notes: ''
-      });
-      setShowAddCustomer(false);
-    } catch (error) {
-      console.error('Failed to add customer:', error);
-    }
   };
   
   // Handler for manual refresh
@@ -203,13 +161,6 @@ export default function WaiterCustomersPage() {
           >
             <FaSyncAlt className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
-          </button>
-          <button
-            onClick={() => setShowAddCustomer(true)}
-            className="flex items-center px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700"
-          >
-            <FaPlus className="mr-2" />
-            Add Customer
           </button>
         </div>
       </div>
@@ -257,7 +208,7 @@ export default function WaiterCustomersPage() {
         <>
           {customers.length === 0 ? (
             <div className="bg-white rounded-lg shadow p-6 text-center">
-              <p className="text-gray-500">No customers found. Try a different search term or add a new customer.</p>
+              <p className="text-gray-500">No customers found. Try a different search term.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -308,110 +259,6 @@ export default function WaiterCustomersPage() {
             </div>
           )}
         </>
-      )}
-      
-      {/* Add customer modal */}
-      {showAddCustomer && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-md w-full">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h2 className="text-xl font-bold">Add New Customer</h2>
-              <button 
-                onClick={() => setShowAddCustomer(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ×
-              </button>
-            </div>
-            
-            <form onSubmit={handleAddCustomer} className="p-4">
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="name">
-                  Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  required
-                  value={newCustomer.name}
-                  onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="phone">
-                  Phone <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="phone"
-                  type="tel"
-                  required
-                  value={newCustomer.phone}
-                  onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="email">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  value={newCustomer.email}
-                  onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="preferences">
-                  Preferences
-                </label>
-                <input
-                  id="preferences"
-                  type="text"
-                  value={newCustomer.preferences}
-                  onChange={(e) => setNewCustomer({...newCustomer, preferences: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Preferred dishes, seating, etc."
-                />
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="notes">
-                  Notes
-                </label>
-                <textarea
-                  id="notes"
-                  value={newCustomer.notes}
-                  onChange={(e) => setNewCustomer({...newCustomer, notes: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                  placeholder="Additional notes about the customer"
-                ></textarea>
-              </div>
-              
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowAddCustomer(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Add Customer
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
     </div>
   );
