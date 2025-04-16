@@ -225,9 +225,9 @@ export default function WaiterDashboard() {
         )}
         {dashboardData && dashboardData.recentActivity.length > 0 && (
           <div className="bg-gray-50 px-6 py-3">
-            <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+            <Link href="/waiter/activity" className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
               View all activity
-            </button>
+            </Link>
           </div>
         )}
       </div>

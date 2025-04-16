@@ -27,13 +27,13 @@ export async function GET(req: NextRequest) {
     const waiterId = session.user.id;
 
     // Get table statistics (all assigned to this waiter)
-    const tables = await Table.find({ assignedTo: waiterId });
+    const tables = await (Table as any).find({ assignedTo: waiterId });
     const totalTables = tables.length;
     const occupiedTables = tables.filter(t => t.status === 'occupied').length;
     const availableTables = tables.filter(t => t.status === 'available').length;
     
     // Get statistics for all tables in the restaurant
-    const allTables = await Table.find({});
+    const allTables = await (Table as any).find({});
     const allTableCount = allTables.length;
     const allOccupiedTables = allTables.filter(t => t.status === 'occupied').length;
     const allAvailableTables = allTables.filter(t => t.status === 'available').length;
@@ -99,23 +99,23 @@ export async function GET(req: NextRequest) {
     }
 
     // Get most recent table assignments
-    const recentTables = await Table.find({ assignedTo: waiterId })
+    const recentTables = await (Table as any).find({ assignedTo: waiterId })
       .sort({ updatedAt: -1 })
       .limit(3)
-      .select('_id tableNumber status updatedAt');
+      .select('_id number status updatedAt');
 
     for (const table of recentTables) {
       recentActivity.push({
         id: table._id.toString(),
         type: 'table',
-        action: `Table #${table.tableNumber} is ${table.status}`,
+        action: `Table #${table.number} is ${table.status}`,
         timeSince: formatDistanceToNow(new Date(table.updatedAt), { addSuffix: true })
       });
     }
 
     // Get most recent bills
-    const recentBills = await Bill.find({
-      order: { $in: await Order.find({ waiterId }).distinct('_id') }
+    const recentBills = await (Bill as any).find({
+      order: { $in: await (Order as any).find({ waiterId }).distinct('_id') }
     })
       .sort({ updatedAt: -1 })
       .limit(2)
