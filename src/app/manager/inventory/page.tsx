@@ -115,14 +115,8 @@ export default function InventoryPage() {
       setIsLoading(true);
       setError(null);
       
-      // Build query string - only use pagination parameters
       const queryParams = new URLSearchParams();
-      // Only category filter is still handled server-side since it affects pagination
       if (selectedCategory !== 'all') queryParams.append('category', selectedCategory);
-      // Remove status filtering from the API call, we'll do this client-side
-      // if (selectedStatus === 'Low Stock' || selectedStatus === 'Critical Stock' || selectedStatus === 'Out of Stock') {
-      //   queryParams.append('lowStock', 'true');
-      // }
       if (searchQuery) queryParams.append('search', searchQuery);
       queryParams.append('page', pagination.page.toString());
       queryParams.append('limit', pagination.limit.toString());
@@ -239,7 +233,7 @@ export default function InventoryPage() {
       }
       
       toast.success(`Added ${quantity} ${item.unit} to ${item.name}`);
-      fetchInventory(); // Refresh the inventory list
+      fetchInventory(); 
     } catch (err: any) {
       toast.error(err.message || 'Failed to restock item');
     }
