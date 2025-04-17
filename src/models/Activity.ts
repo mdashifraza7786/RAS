@@ -61,7 +61,6 @@ const ActivitySchema = new Schema(
   }
 );
 
-// Create index for faster queries
 ActivitySchema.index({ createdAt: -1, waiterId: 1, type: 1 });
 
 const Activity = mongoose.models.Activity || mongoose.model<IActivity>('Activity', ActivitySchema);
