@@ -9,30 +9,24 @@ import { formatDistanceToNow } from 'date-fns';
 
 export async function GET(req: NextRequest) {
   try {
-    // Check authentication
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if the user is a chef
     if (session.user.role !== 'chef') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
-
-    // Connect to the database
+    
     await connectToDatabase();
     
-    // Parse query parameters
     const url = new URL(req.url);
     const page = parseInt(url.searchParams.get('page') || '1');
     const limit = parseInt(url.searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
     
-    // Combine activities from different sources for a comprehensive activity feed
     const activities = [];
     
-    // Get orders related to the chef's work (pending, in-progress, ready)
     const orders = await (Order as any).find({ 
       status: { $in: ['pending', 'in-progress', 'ready', 'completed'] }
     })
@@ -45,7 +39,6 @@ export async function GET(req: NextRequest) {
       let action = '';
       let type = 'order';
 
-      // Different message based on status and whether it's a new order or updated
       const isNew = order.createdAt.toString() === order.updatedAt.toString();
       
       switch (order.status) {
@@ -90,7 +83,6 @@ export async function GET(req: NextRequest) {
       });
     }
     
-    // Get inventory updates
     const inventoryUpdates = await (Inventory as any).find({})
       .sort({ updatedAt: -1 })
       .skip(skip)
@@ -118,7 +110,6 @@ export async function GET(req: NextRequest) {
       });
     }
     
-    // Get menu item updates
     const menuUpdates = await (MenuItem as any).find({})
       .sort({ updatedAt: -1 })
       .skip(skip)
@@ -142,12 +133,10 @@ export async function GET(req: NextRequest) {
       });
     }
     
-    // Sort all activities by timestamp (most recent first)
     activities.sort((a, b) => {
       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     });
     
-    // Get total count for pagination
     const orderCount = await (Order as any).countDocuments({ 
       status: { $in: ['pending', 'in-progress', 'ready', 'completed'] }
     });

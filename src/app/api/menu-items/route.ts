@@ -7,7 +7,6 @@ export async function GET() {
   try {
     await connectDB();
 
-    // Get menu items that are available
     const menuItems = await (MenuItem as Model<IMenuItem>).find({ available: true })
       .select('name description price category image available preparationTime')
       .sort({ category: 1, name: 1 });

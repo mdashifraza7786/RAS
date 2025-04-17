@@ -3,10 +3,8 @@ import connectToDatabase from '@/lib/mongodb';
 import Inventory from '@/models/Inventory';
 import { checkManagerAuth } from '@/lib/api-auth';
 
-// POST /api/manager/inventory/report - Generate inventory report
 export async function POST(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     
@@ -17,16 +15,13 @@ export async function POST(request: NextRequest) {
     let query = {};
     let sort: Record<string, 1 | -1> = { category: 1, name: 1 };
     
-    // Build query based on report type
     switch (reportType) {
       case 'low-stock':
         query = { 
           $or: [
-            // Check existing status fields
             { status: 'Low Stock' },
             { status: 'Critical Stock' },
             { status: 'Out of Stock' },
-            // Also directly check quantity vs minStockLevel
             { $expr: { $lte: ["$quantity", "$minStockLevel"] } }
           ]
         };
@@ -51,10 +46,8 @@ export async function POST(request: NextRequest) {
         break;
     }
     
-    // Get inventory items based on query
     const items = await Inventory.find(query).sort(sort).lean();
     
-    // Calculate summary statistics
     const totalItems = items.length;
     const totalValue = items.reduce((sum, item) => sum + item.totalCost, 0);
     const lowStockItems = items.filter(item => 
@@ -64,7 +57,6 @@ export async function POST(request: NextRequest) {
       item.quantity <= item.minStockLevel
     ).length;
     
-    // Group items by category for summary
     interface CategorySummary {
       [category: string]: {
         count: number;

@@ -5,7 +5,6 @@ import connectToDatabase from '@/lib/mongodb';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-// Define specific interface for the params
 interface RouteContextParams {
   params: {
     id: string;
@@ -17,10 +16,8 @@ export async function PATCH(
   context: RouteContextParams
 ) {
   try {
-    // Resolve params
     const { id } = context.params;
     
-    // Check user authentication
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json(
@@ -29,10 +26,8 @@ export async function PATCH(
       );
     }
 
-    // Connect to the database
     await connectToDatabase();
 
-    // Validate ID format
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: 'Invalid menu item ID format' },
@@ -40,19 +35,16 @@ export async function PATCH(
       );
     }
 
-    // Get request body
     const body = await request.json();
     const { available } = body;
 
-    // Validate that available is a boolean
     if (typeof available !== 'boolean') {
       return NextResponse.json(
         { error: 'Available status must be a boolean' },
         { status: 400 }
       );
     }
-
-    // Update the menu item availability using the imported MenuItem model
+    
     const updatedMenuItem = await (MenuItem as any).findByIdAndUpdate(
       id,
       { available },

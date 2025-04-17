@@ -4,7 +4,6 @@ import Bill from '@/models/Bill';
 import Order from '@/models/Order';
 import { getServerSession } from 'next-auth';
 
-// Interface for bill filters
 interface BillFilters {
   paymentStatus?: string;
   createdAt?: {
@@ -13,7 +12,6 @@ interface BillFilters {
   };
 }
 
-// GET /api/bills/[id] - Get a specific bill
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -21,7 +19,6 @@ export async function GET(
   try {
     const session = await getServerSession();
     
-    // Check if user is authenticated
     if (!session) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -31,7 +28,6 @@ export async function GET(
     
     await connectToDatabase();
     
-    // Find bill by ID and populate related data
     const bill = await Bill.findById(params.id)
       .populate('order')
       .populate('waiter', 'name');
@@ -53,7 +49,6 @@ export async function GET(
   }
 }
 
-// PUT /api/bills/[id] - Update a bill
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -61,7 +56,6 @@ export async function PUT(
   try {
     const session = await getServerSession();
     
-    // Check if user is authenticated and has waiter or manager role
     if (!session || (session.user.role !== 'waiter' && session.user.role !== 'manager')) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -72,7 +66,6 @@ export async function PUT(
     await connectToDatabase();
     const data = await request.json();
     
-    // Find bill by ID
     const bill = await Bill.findById(params.id);
     
     if (!bill) {
@@ -82,7 +75,6 @@ export async function PUT(
       );
     }
     
-    // If updating amounts, recalculate total
     if (data.subtotal !== undefined || data.tax !== undefined || data.tip !== undefined || data.discount !== undefined) {
       const subtotal = data.subtotal !== undefined ? data.subtotal : bill.subtotal;
       const tax = data.tax !== undefined ? data.tax : bill.tax;
@@ -92,14 +84,12 @@ export async function PUT(
       data.total = subtotal + tax + tip - discount;
     }
     
-    // Update bill
     const updatedBill = await Bill.findByIdAndUpdate(
       params.id,
       { $set: data },
       { new: true, runValidators: true }
     );
     
-    // If payment status changed to 'paid', update the related order
     if (data.paymentStatus === 'paid' && bill.paymentStatus !== 'paid') {
       const order = await Order.findById(bill.order);
       if (order) {
@@ -121,7 +111,6 @@ export async function PUT(
   }
 }
 
-// DELETE /api/bills/[id] - Delete a bill (manager only)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -129,7 +118,6 @@ export async function DELETE(
   try {
     const session = await getServerSession();
     
-    // Check if user is authenticated and has manager role
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -148,7 +136,6 @@ export async function DELETE(
       );
     }
     
-    // If bill is paid, check before deletion
     if (bill.paymentStatus === 'paid') {
       return NextResponse.json(
         { error: 'Cannot delete a paid bill. Consider voiding or refunding instead.' },
@@ -156,7 +143,6 @@ export async function DELETE(
       );
     }
     
-    // Delete the bill
     await Bill.findByIdAndDelete(params.id);
     
     return NextResponse.json({ message: 'Bill deleted successfully' });

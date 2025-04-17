@@ -8,12 +8,10 @@ export async function PATCH(
   { params }: { params: { id: string; itemId: string } }
 ) {
   try {
-    // Connect to database
     await connectToDatabase();
 
     const { id, itemId } = params;
 
-    // Validate orderId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: 'Invalid order ID format' },
@@ -21,11 +19,9 @@ export async function PATCH(
       );
     }
 
-    // Get the request body
     const body = await request.json();
     const { status } = body;
 
-    // Validate status
     const validItemStatuses = ['pending', 'preparing', 'ready', 'served', 'cancelled'];
     if (!status || !validItemStatuses.includes(status)) {
       return NextResponse.json(
@@ -34,7 +30,6 @@ export async function PATCH(
       );
     }
 
-    // Find the order
     const order = await Order.findById(id);
     
     if (!order) {
@@ -44,7 +39,6 @@ export async function PATCH(
       );
     }
 
-    // Find the specific item
     const itemIndex = order.items.findIndex(
       (item: any) => item._id.toString() === itemId
     );
@@ -56,20 +50,15 @@ export async function PATCH(
       );
     }
 
-    // Update the item status
     order.items[itemIndex].status = status;
 
-    // Also update the overall order status based on item statuses
-    // If all items are 'ready', set order to 'ready'
     if (status === 'ready' && order.items.every((item: any) => item.status === 'ready')) {
       order.status = 'ready';
     } 
-    // If any item is 'preparing', set order to 'in-progress'
     else if (status === 'preparing' && order.status === 'pending') {
       order.status = 'in-progress';
     }
-
-    // Save the order
+    
     await order.save();
 
     // Return the updated order and item

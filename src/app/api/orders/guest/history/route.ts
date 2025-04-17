@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
 
-/**
- * @route GET /api/orders/guest/history
- * @desc Get order history for a guest by phone number
- * @access Public
- */
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -21,11 +17,8 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    // Clean up phone number by removing any trailing commas
     const cleanPhone = phone.replace(/,+$/, '');
 
-    // Find all orders for this phone number, sorted by creation date
-    // Note: We're not filtering by orderType to show all guest orders
     const orders = await Order.find({ 
       customerPhone: { $in: [cleanPhone, `${cleanPhone},`] }
     })
@@ -34,7 +27,6 @@ export async function GET(request: NextRequest) {
     .populate('table', 'number name')
     .lean();
 
-    // Format the orders for response
     const formattedOrders = orders.map(order => ({
       id: order._id.toString(),
       orderNumber: order.orderNumber,

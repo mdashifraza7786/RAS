@@ -35,7 +35,6 @@ export async function POST(
       );
     }
 
-    // Update order with new status and completion time
     const updatedOrder = await (Order as Model<IOrder>).findByIdAndUpdate(
       params.orderId,
       {

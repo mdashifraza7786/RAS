@@ -5,7 +5,6 @@ import { checkManagerAuth } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     
@@ -15,7 +14,6 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
     const search = searchParams.get('search');
     
-    // Build query
     const query: any = {};
     
     if (category && category !== 'all') {
@@ -45,14 +43,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     
     await connectToDatabase();
     const data = await request.json();
     
-    // Validate required fields
     if (!data.name || !data.price || !data.category) {
       return NextResponse.json(
         { error: 'Name, price, and category are required' },
@@ -73,7 +69,6 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     
@@ -113,7 +108,6 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     

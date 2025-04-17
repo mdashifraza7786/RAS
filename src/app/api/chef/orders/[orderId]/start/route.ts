@@ -11,7 +11,6 @@ export async function POST(
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and has chef role
     if (!session?.user || session.user.role !== 'chef') {
       return NextResponse.json(
         { error: "Unauthorized - Chef access required" },
@@ -21,7 +20,6 @@ export async function POST(
 
     await connectDB();
 
-    // Find and update the order
     const order = await Order.findOne({ orderNumber: parseInt(params.orderId) });
     
     if (!order) {
@@ -38,7 +36,6 @@ export async function POST(
       );
     }
 
-    // Update order status and add event
     order.status = OrderStatus.Cooking;
     order.startedAt = new Date();
     if (!order.events) {
@@ -50,7 +47,6 @@ export async function POST(
       user: session.user.name || 'Chef'
     });
 
-    // Update all pending items to in-progress
     order.items.forEach(item => {
       if (item.status === ItemStatus.Pending) {
         item.status = ItemStatus.InProgress;

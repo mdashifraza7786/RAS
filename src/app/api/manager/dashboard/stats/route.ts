@@ -9,8 +9,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    
-    // Check if user is authenticated and is a manager
+
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -20,12 +19,10 @@ export async function GET() {
     
     await connectToDatabase();
     
-    // Get current date and last month's date
     const now = new Date();
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     
-    // Get total revenue for current month
     const currentMonthRevenue = await Bill.aggregate([
       {
         $match: {
@@ -41,7 +38,6 @@ export async function GET() {
       }
     ]);
     
-    // Get total revenue for last month
     const lastMonthRevenue = await Bill.aggregate([
       {
         $match: {
@@ -57,27 +53,22 @@ export async function GET() {
       }
     ]);
     
-    // Get total orders for current month
     const currentMonthOrders = await Order.countDocuments({
       createdAt: { $gte: thisMonth }
     });
     
-    // Get total orders for last month
     const lastMonthOrders = await Order.countDocuments({
       createdAt: { $gte: lastMonth, $lt: thisMonth }
     });
     
-    // Get new customers this month
     const newCustomers = await Customer.countDocuments({
       createdAt: { $gte: thisMonth }
     });
     
-    // Get new customers last month
     const lastMonthCustomers = await Customer.countDocuments({
       createdAt: { $gte: lastMonth, $lt: thisMonth }
     });
     
-    // Calculate average order value
     const avgOrderValue = await Bill.aggregate([
       {
         $match: {
@@ -93,15 +84,12 @@ export async function GET() {
       }
     ]);
     
-    // Calculate revenue growth
     const currentRevenue = currentMonthRevenue[0]?.total || 0;
     const previousRevenue = lastMonthRevenue[0]?.total || 0;
     const revenueGrowth = previousRevenue ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : 0;
     
-    // Calculate order growth
     const orderGrowth = lastMonthOrders ? ((currentMonthOrders - lastMonthOrders) / lastMonthOrders) * 100 : 0;
     
-    // Calculate customer growth
     const customerGrowth = lastMonthCustomers ? ((newCustomers - lastMonthCustomers) / lastMonthCustomers) * 100 : 0;
     
     return NextResponse.json({

@@ -7,7 +7,6 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { ICustomer } from '@/models/Customer';
 
-// GET /api/customers/[id] - Get a customer by ID (with optional history)
 export async function GET(
   request: NextRequest, 
   { params }: { params: { id: string } }
@@ -15,7 +14,6 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated with appropriate role (manager or waiter)
     if (!session || (session.user.role !== 'manager' && session.user.role !== 'waiter')) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -27,7 +25,6 @@ export async function GET(
     
     const { id } = await params;
     
-    // Check if valid ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: 'Invalid customer ID' },
@@ -35,7 +32,6 @@ export async function GET(
       );
     }
     
-    // Get customer 
     const customer = await (Customer as any).findById(id);
     
     if (!customer) {
@@ -45,11 +41,9 @@ export async function GET(
       );
     }
     
-    // Check if we should include bill history
     const includeHistory = request.nextUrl.searchParams.get('history') === 'true';
     
     if (includeHistory) {
-      // Find recent bills for this customer
       const recentBills = await (Bill as any).find({ customer: id })
         .sort({ createdAt: -1 })
         .limit(10)
@@ -77,7 +71,6 @@ export async function GET(
   }
 }
 
-// PUT /api/customers/[id] - Update a customer
 export async function PUT(
   request: NextRequest, 
   { params }: { params: { id: string } }
@@ -85,7 +78,6 @@ export async function PUT(
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated with appropriate role (manager or waiter)
     if (!session || (session.user.role !== 'manager' && session.user.role !== 'waiter')) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -97,7 +89,6 @@ export async function PUT(
     
     const { id } = await params;
     
-    // Check if valid ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: 'Invalid customer ID' },
@@ -107,13 +98,11 @@ export async function PUT(
     
     const data = await request.json();
     
-    // Prevent updating critical fields directly
     const safeData = { ...data };
     delete safeData._id;
     delete safeData.createdAt;
     delete safeData.updatedAt;
     
-    // Find and update customer
     const customer = await (Customer as any).findByIdAndUpdate(
       id,
       { $set: safeData },
@@ -137,7 +126,6 @@ export async function PUT(
   }
 }
 
-// DELETE /api/customers/[id] - Delete a customer (manager only)
 export async function DELETE(
   request: NextRequest, 
   { params }: { params: { id: string } }
@@ -145,7 +133,6 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions);
     
-    // Only managers can delete customers
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized. Only managers can delete customers.' },
@@ -157,7 +144,6 @@ export async function DELETE(
     
     const { id } = await params;
     
-    // Check if valid ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: 'Invalid customer ID' },
@@ -165,7 +151,6 @@ export async function DELETE(
       );
     }
     
-    // Find and delete customer
     const customer = await (Customer as any).findByIdAndDelete(id);
     
     if (!customer) {

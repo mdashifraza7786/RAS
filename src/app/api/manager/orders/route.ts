@@ -8,7 +8,6 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and is a manager
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -26,7 +25,6 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
     const search = searchParams.get('search');
     
-    // Build query
     const query: any = {};
     
     if (status && status !== 'all') {
@@ -47,10 +45,8 @@ export async function GET(request: NextRequest) {
       ];
     }
     
-    // Get total count for pagination
     const total = await Order.countDocuments(query);
     
-    // Fetch orders with pagination
     const orders = await Order.find(query)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -81,7 +77,6 @@ export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and is a manager
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },

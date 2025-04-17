@@ -18,12 +18,10 @@ interface PaymentStats {
   }[];
 }
 
-// GET /api/manager/payments - Get payment statistics and history
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and is a manager
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -40,12 +38,10 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     
-    // Build query
     const query: any = {
-      paymentStatus: 'paid'  // Only include paid payments
+      paymentStatus: 'paid'
     };
     
-    // Exclude refunded payments
     query.paymentStatus = { $ne: 'refunded' };
     
     if (startDate || endDate) {
@@ -55,10 +51,8 @@ export async function GET(request: NextRequest) {
     }
     
     if (paymentMethod && paymentMethod !== 'all' && paymentMethod !== 'All Methods') {
-      // Convert UI payment method names to database values
       let dbPaymentMethod = paymentMethod.toLowerCase();
       if (dbPaymentMethod === 'card') {
-        // Already mapped correctly as 'card'
         query.paymentMethod = 'card';
       } else if (dbPaymentMethod === 'wallet') {
         query.paymentMethod = 'upi';
@@ -68,10 +62,8 @@ export async function GET(request: NextRequest) {
     }
     
     try {
-      // Get total count for pagination
       const total = await Bill.countDocuments(query);
       
-      // Fetch bills with pagination
       const bills = await Bill.find(query)
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
@@ -80,14 +72,12 @@ export async function GET(request: NextRequest) {
         .populate('waiter', 'name')
         .lean();
 
-      // Map bills to expected format with paidAt field
       const mappedBills = bills.map(bill => ({
         ...bill,
         paidAt: bill.createdAt,
         customer: bill.customerName || 'Guest'
       }));
       
-      // Calculate payment statistics
       const stats: PaymentStats = {
         totalRevenue: 0,
         averageOrderValue: 0,
@@ -95,17 +85,14 @@ export async function GET(request: NextRequest) {
         dailyRevenue: []
       };
       
-      // Get all paid bills for statistics
       const allBills = await Bill.find({ paymentStatus: 'paid' })
         .sort({ createdAt: 1 })
         .lean();
-      
-      // Calculate total revenue and payment method distribution
+            
       allBills.forEach(bill => {
         stats.totalRevenue += bill.total;
         stats.paymentMethods[bill.paymentMethod] = (stats.paymentMethods[bill.paymentMethod] || 0) + bill.total;
         
-        // Add to daily revenue
         const date = new Date(bill.createdAt).toISOString().split('T')[0];
         const existingDay = stats.dailyRevenue.find(d => d.date === date);
         if (existingDay) {
@@ -115,7 +102,6 @@ export async function GET(request: NextRequest) {
         }
       });
       
-      // Calculate average order value
       stats.averageOrderValue = stats.totalRevenue / (allBills.length || 1);
       
       return NextResponse.json({
@@ -144,12 +130,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/manager/payments - Record a payment
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and is a manager
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -160,7 +144,6 @@ export async function POST(request: NextRequest) {
     await connectToDatabase();
     const data = await request.json();
     
-    // Validate required fields
     if (!data.orderId || !data.amount || !data.paymentMethod) {
       return NextResponse.json(
         { error: 'Order ID, amount, and payment method are required' },
@@ -168,7 +151,6 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Check if order exists
     const order = await Order.findById(data.orderId);
     if (!order) {
       return NextResponse.json(
@@ -177,7 +159,6 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Check if bill already exists
     const existingBill = await Bill.findOne({ order: data.orderId });
     if (existingBill) {
       return NextResponse.json(
@@ -186,7 +167,6 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Create bill
     const bill = await Bill.create({
       order: data.orderId,
       total: data.amount,
@@ -196,7 +176,6 @@ export async function POST(request: NextRequest) {
       notes: data.notes
     });
     
-    // Update order status
     await Order.findByIdAndUpdate(data.orderId, { status: 'completed' });
     
     return NextResponse.json(bill, { status: 201 });
@@ -209,12 +188,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/manager/payments - Update payment status
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and is a manager
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -249,7 +226,6 @@ export async function PUT(request: NextRequest) {
       );
     }
     
-    // If payment is marked as paid, update order status
     if (status === 'paid') {
       await Order.findByIdAndUpdate(bill.order, { status: 'completed' });
     }
@@ -263,13 +239,11 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
-
-// DELETE /api/manager/payments - Delete payment record
+  
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and is a manager
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -297,7 +271,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
     
-    // Only allow deletion of unpaid bills
     if (bill.paymentStatus === 'paid') {
       return NextResponse.json(
         { error: 'Cannot delete paid bills' },

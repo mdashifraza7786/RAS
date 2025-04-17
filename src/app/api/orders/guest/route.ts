@@ -20,11 +20,6 @@ interface OrderItem {
   name: string;
 }
 
-/**
- * @route POST /api/orders/guest
- * @desc Create a new guest order with balanced waiter assignment
- * @access Public
- */
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
@@ -46,7 +41,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate and get table
     const table = await (Table as Model<ITable>).findOne({ number: tableNumber });
     if (!table) {
       return NextResponse.json(
@@ -55,7 +49,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if table is available
     if (table.status !== 'available') {
       return NextResponse.json(
         { error: "Table is not available" },
@@ -63,7 +56,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get all active waiters
     const filter: FilterQuery<IUser> = {
       role: "waiter",
       status: "active",
@@ -78,17 +70,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Implement balanced waiter assignment
     const assignWaiter = (waiters: WaiterWithStats[]) => {
-      // Sort waiters by order count and last assignment time
       const sortedWaiters = waiters.sort((a, b) => {
-        // First, compare by order count
         const aCount = a.orderCount || 0;
         const bCount = b.orderCount || 0;
         if (aCount !== bCount) {
           return aCount - bCount;
         }
-        // If order counts are equal, assign to the one who hasn't had an order in longer
         const aTime = a.lastOrderAssigned ? a.lastOrderAssigned.getTime() : 0;
         const bTime = b.lastOrderAssigned ? b.lastOrderAssigned.getTime() : 0;
         return aTime - bTime;
@@ -97,17 +85,13 @@ export async function POST(request: NextRequest) {
       return sortedWaiters[0];
     };
 
-    // Assign a waiter using the balanced algorithm
     const assignedWaiter = assignWaiter(waiters);
 
-    // Fetch menu items to get their details
     const menuItemIds = items.map(item => new mongoose.Types.ObjectId(item.menuItemId));
     const menuItems = await (MenuItem as Model<IMenuItem>).find({ _id: { $in: menuItemIds } }).lean();
 
-    // Create a map for quick lookup
     const menuItemMap = new Map(menuItems.map(item => [item._id.toString(), item]));
 
-    // Prepare order items with menu item details
     const orderItems = items.map(item => {
       const menuItem = menuItemMap.get(item.menuItemId) as IMenuItem;
       if (!menuItem) {
@@ -123,13 +107,11 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    // Calculate totals
     const subtotal = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const taxRate = 0.18; // 18% tax rate
+    const taxRate = 0.18;
     const tax = subtotal * taxRate;
     const total = subtotal + tax;
 
-    // Create the order
     const order = new Order({
       orderNumber: await generateOrderNumber(),
       customerName,
@@ -146,10 +128,8 @@ export async function POST(request: NextRequest) {
       table: table._id
     });
 
-    // Save the order
     await order.save();
 
-    // Update table status and assign to waiter
     await (Table as Model<ITable>).findByIdAndUpdate(
       table._id,
       {
@@ -160,7 +140,6 @@ export async function POST(request: NextRequest) {
       { new: true }
     );
 
-    // Update waiter's stats
     await (User as Model<WaiterWithStats>).findByIdAndUpdate(
       assignedWaiter._id,
       {
@@ -170,7 +149,6 @@ export async function POST(request: NextRequest) {
       { new: true }
     );
 
-    // Populate necessary fields for response
     const populatedOrder = await Order.findById(order._id)
       .populate('waiter', 'name')
       .populate('table', 'number name')
@@ -181,7 +159,6 @@ export async function POST(request: NextRequest) {
       throw new Error('Failed to populate order details');
     }
 
-    // Format the response
     const formattedOrder = {
       id: populatedOrder._id.toString(),
       orderNumber: populatedOrder.orderNumber,
@@ -222,4 +199,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

@@ -7,7 +7,6 @@ import { authOptions } from '@/lib/auth';
 
 export async function GET(request: Request) {
   try {
-    // Check user authentication
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json(
@@ -15,17 +14,14 @@ export async function GET(request: Request) {
         { status: 401 }
       );
     }
-
-    // Connect to the database
+    
     await connectToDatabase();
 
-    // Parse query parameters
     const url = new URL(request.url);
     const searchTerm = url.searchParams.get('search') || '';
     const category = url.searchParams.get('category') || '';
     const availability = url.searchParams.get('availability') || '';
 
-    // Build query
     const query: mongoose.FilterQuery<IMenuItem> = {};
     
     if (searchTerm) {
@@ -46,13 +42,10 @@ export async function GET(request: Request) {
       query.available = false;
     }
 
-    // Get menu items directly using the imported MenuItem model
     const menuItems = await (MenuItem as any).find(query).lean();
 
-    // Get all unique categories for filtering
     const allCategories = await (MenuItem as any).distinct('category');
 
-    // Format the response
     const formattedMenuItems = menuItems.map(item => ({
       id: item._id.toString(),
       name: item.name,

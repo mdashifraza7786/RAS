@@ -6,12 +6,10 @@ import User from '@/models/User';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { Types } from 'mongoose';
 
-// GET /api/manager/staff/attendance - Get attendance records
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and is a manager
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -29,7 +27,6 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '30');
     
-    // Build query
     const query: any = {};
     
     if (staffId) {
@@ -46,10 +43,8 @@ export async function GET(request: NextRequest) {
       if (endDate) query.date.$lte = new Date(endDate);
     }
     
-    // Get total count for pagination
     const total = await Attendance.countDocuments(query);
     
-    // Fetch attendance records with pagination
     const attendanceRecords = await Attendance.find(query)
       .sort({ date: -1 })
       .skip((page - 1) * limit)
@@ -75,12 +70,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/manager/staff/attendance - Create a new attendance record
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and is a manager
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -91,7 +84,6 @@ export async function POST(request: NextRequest) {
     await connectToDatabase();
     const data = await request.json();
     
-    // Validate required fields
     if (!data.staffId || !data.date || !data.status) {
       return NextResponse.json(
         { error: 'Staff ID, date, and status are required' },
@@ -99,7 +91,6 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Check if staff exists
     const staff = await User.findById(data.staffId);
     if (!staff) {
       return NextResponse.json(
@@ -108,7 +99,6 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Check if record already exists for this staff and date
     const dateObj = new Date(data.date);
     const existingRecord = await Attendance.findOne({
       staff: data.staffId,
@@ -125,7 +115,6 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Create attendance record
     const attendance = await Attendance.create({
       staff: data.staffId,
       date: data.date,
@@ -148,12 +137,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/manager/staff/attendance - Update an attendance record
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and is a manager
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -195,12 +182,10 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE /api/manager/staff/attendance - Delete an attendance record
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and is a manager
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },

@@ -3,7 +3,6 @@ import connectToDatabase from '@/lib/mongodb';
 import MenuItem from '@/models/MenuItem';
 import { getServerSession } from 'next-auth';
 
-// GET /api/menu - Get all menu items
 export async function GET() {
   try {
     await connectToDatabase();
@@ -20,12 +19,10 @@ export async function GET() {
   }
 }
 
-// POST /api/menu - Create a new menu item (manager only)
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession();
     
-    // Check if user is authenticated and has manager role
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -36,7 +33,6 @@ export async function POST(request: NextRequest) {
     await connectToDatabase();
     const data = await request.json();
     
-    // Validate required fields
     if (!data.name || !data.price || !data.category) {
       return NextResponse.json(
         { error: 'Name, price, and category are required' },

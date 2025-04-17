@@ -12,7 +12,6 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and has chef role
     if (!session?.user || session.user.role !== 'chef') {
       return NextResponse.json(
         { error: "Unauthorized - Chef access required" },
@@ -22,11 +21,9 @@ export async function GET(
 
     await connectDB();
 
-    // Try to find order by either orderNumber or _id
     let order;
     const { orderId } = params;
 
-    // First try to parse as orderNumber (integer)
     const orderNumber = parseInt(orderId);
     if (!isNaN(orderNumber)) {
       order = await Order.findOne({ orderNumber })
@@ -39,7 +36,6 @@ export async function GET(
         .lean();
     }
 
-    // If not found and orderId is a valid ObjectId, try finding by _id
     if (!order && mongoose.Types.ObjectId.isValid(orderId)) {
       order = await Order.findById(orderId)
         .populate('waiter', 'name')
@@ -58,7 +54,6 @@ export async function GET(
       );
     }
 
-    // Format the order data for the response
     const formattedOrder = {
       id: order._id.toString(),
       orderNumber: order.orderNumber,
@@ -111,7 +106,6 @@ export async function PUT(
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and has chef role
     if (!session?.user || session.user.role !== 'chef') {
       return NextResponse.json(
         { error: "Unauthorized - Chef access required" },
@@ -121,20 +115,16 @@ export async function PUT(
 
     await connectDB();
 
-    // Get request body
     const body = await request.json();
     const { status, itemUpdates } = body;
 
-    // Find order by either orderNumber or _id
     let order;
     const { orderId } = params;
 
-    // First try to find by MongoDB ObjectId
     if (mongoose.Types.ObjectId.isValid(orderId)) {
       order = await Order.findById(orderId);
     }
 
-    // If not found, try to find by orderNumber
     if (!order) {
       const orderNumber = parseInt(orderId);
       if (!isNaN(orderNumber)) {
@@ -149,7 +139,6 @@ export async function PUT(
       );
     }
 
-    // Update order status if provided
     if (status) {
       if (!Object.values(OrderStatus).includes(status)) {
         return NextResponse.json(
@@ -160,7 +149,6 @@ export async function PUT(
       order.status = status;
     }
 
-    // Update individual item statuses if provided
     if (itemUpdates && Array.isArray(itemUpdates)) {
       itemUpdates.forEach(update => {
         const item = order.items.find(item => item._id.toString() === update.itemId);
@@ -170,7 +158,6 @@ export async function PUT(
       });
     }
 
-    // Add event to track the update
     if (!order.events) {
       order.events = [];
     }
@@ -180,10 +167,8 @@ export async function PUT(
       user: session.user.name || 'Chef'
     });
 
-    // Save the updated order
     await order.save();
 
-    // Return formatted order
     const updatedOrder = await Order.findById(order._id)
       .populate('waiter', 'name')
       .populate('table', 'number name')

@@ -7,7 +7,6 @@ import { authOptions } from '@/lib/auth';
 
 export async function PATCH(request: NextRequest) {
   try {
-    // Check authentication
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json(
@@ -16,7 +15,6 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Check if the user is a chef
     if (session.user.role !== 'chef') {
       return NextResponse.json(
         { error: 'Only chefs can update inventory' },
@@ -24,14 +22,11 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Connect to database
     await connectToDatabase();
 
-    // Parse request body
     const body = await request.json();
     const { itemId, amount } = body;
 
-    // Validate input
     if (!itemId || !mongoose.Types.ObjectId.isValid(itemId)) {
       return NextResponse.json(
         { error: 'Valid item ID is required' },
@@ -46,7 +41,6 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Chefs can only reduce inventory (negative amount)
     if (amount >= 0) {
       return NextResponse.json(
         { error: 'Chefs can only reduce inventory, not add to it' },
@@ -54,7 +48,6 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Find and update the inventory item
     const updatedItem = await (Inventory as any).findByIdAndUpdate(
       itemId,
       { 
@@ -63,7 +56,6 @@ export async function PATCH(request: NextRequest) {
       },
       { 
         new: true,
-        // Prevent stock from going below 0
         runValidators: true
       }
     );
@@ -75,7 +67,6 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // If stock would go below 0, adjust it to 0
     if (updatedItem.currentStock < 0) {
       updatedItem.currentStock = 0;
       await updatedItem.save();

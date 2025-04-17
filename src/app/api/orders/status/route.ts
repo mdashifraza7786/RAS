@@ -59,7 +59,6 @@ export async function PUT(request: Request) {
 
     let updateQuery: any = {};
     
-    // Update specific item status
     if (itemId && itemStatus) {
       updateQuery = {
         $set: { "items.$[elem].status": itemStatus }
@@ -92,7 +91,6 @@ export async function PUT(request: Request) {
       });
     }
 
-    // Update overall order status
     if (status) {
       updateQuery = { status };
       

@@ -3,7 +3,6 @@ import connectToDatabase from '@/lib/mongodb';
 import MenuItem from '@/models/MenuItem';
 import { getServerSession } from 'next-auth';
 
-// GET /api/menu/[id] - Get a specific menu item
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -30,7 +29,6 @@ export async function GET(
   }
 }
 
-// PUT /api/menu/[id] - Update a menu item (manager only)
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -38,7 +36,6 @@ export async function PUT(
   try {
     const session = await getServerSession();
     
-    // Check if user is authenticated and has manager role
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -72,7 +69,6 @@ export async function PUT(
   }
 }
 
-// DELETE /api/menu/[id] - Delete a menu item (manager only)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -80,7 +76,6 @@ export async function DELETE(
   try {
     const session = await getServerSession();
     
-    // Check if user is authenticated and has manager role
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },

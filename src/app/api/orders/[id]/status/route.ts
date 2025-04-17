@@ -12,7 +12,6 @@ export async function PUT(
 
     const { id } = params;
 
-    // Validate orderId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: "Invalid order ID format" },
@@ -20,11 +19,9 @@ export async function PUT(
       );
     }
 
-    // Get request body
     const body = await request.json();
     const { status } = body;
 
-    // Validate status
     const validStatuses = ['pending', 'preparing', 'ready', 'delivered', 'cancelled'];
     if (!status || !validStatuses.includes(status)) {
       return NextResponse.json(
@@ -33,7 +30,6 @@ export async function PUT(
       );
     }
 
-    // Find and update the order
     const updatedOrder = await Order.findByIdAndUpdate(
       id,
       { 
@@ -54,7 +50,6 @@ export async function PUT(
       );
     }
 
-    // Format the response
     const formattedOrder = {
       id: updatedOrder._id.toString(),
       orderNumber: updatedOrder.orderNumber,
@@ -100,7 +95,6 @@ export async function GET(
 
     const { id } = params;
 
-    // Validate orderId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: "Invalid order ID format" },
@@ -108,7 +102,6 @@ export async function GET(
       );
     }
 
-    // Find the order
     const order = await Order.findById(id)
       .select('status items startedAt completedAt')
       .populate('waiter', 'name')
@@ -121,7 +114,6 @@ export async function GET(
       );
     }
 
-    // Format the response
     const formattedOrder = {
       id: order._id.toString(),
       status: order.status,

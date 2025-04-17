@@ -114,12 +114,10 @@ interface CustomerSummary {
   }>;
 }
 
-// GET /api/manager/reports - Get comprehensive reports data
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    // Check if user is authenticated and is a manager
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -133,7 +131,6 @@ export async function GET(request: NextRequest) {
     const reportType = searchParams.get('type') || 'sales';
     const period = searchParams.get('period') || 'month';
     
-    // Calculate date range based on period
     let endDate = new Date();
     let startDate = new Date();
     
@@ -169,7 +166,6 @@ export async function GET(request: NextRequest) {
         break;
     }
     
-    // Process report based on type
     let reportData;
     
     switch (reportType) {
@@ -216,7 +212,6 @@ export async function GET(request: NextRequest) {
 
 // Generate sales report
 async function generateSalesReport(startDate: Date, endDate: Date): Promise<SalesSummary> {
-  // Query for bills in the date range
   const dateQuery = {
     createdAt: {
       $gte: startDate,
@@ -224,18 +219,15 @@ async function generateSalesReport(startDate: Date, endDate: Date): Promise<Sale
     }
   };
   
-  // Get all bills in the date range
   const bills = await Bill.find({
     ...dateQuery,
     paymentStatus: 'paid'
   }).populate('order').lean();
   
-  // Calculate total revenue and orders
   const totalRevenue = bills.reduce((sum, bill) => sum + bill.total, 0);
   const totalOrders = bills.length;
   const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
   
-  // Group by day to get revenue by day
   const revenueByDay: Array<{date: string; revenue: number; orderCount: number}> = [];
   const dailyData = new Map<string, {revenue: number; orderCount: number}>();
   
@@ -249,7 +241,6 @@ async function generateSalesReport(startDate: Date, endDate: Date): Promise<Sale
     data.orderCount += 1;
   });
   
-  // Convert map to array
   dailyData.forEach((data, date) => {
     revenueByDay.push({
       date,
@@ -258,10 +249,8 @@ async function generateSalesReport(startDate: Date, endDate: Date): Promise<Sale
     });
   });
   
-  // Sort by date
   revenueByDay.sort((a, b) => a.date.localeCompare(b.date));
   
-  // Get payment methods breakdown
   const paymentMethodsMap = new Map<string, {amount: number; count: number}>();
   bills.forEach(bill => {
     const method = bill.paymentMethod;
@@ -283,7 +272,6 @@ async function generateSalesReport(startDate: Date, endDate: Date): Promise<Sale
     });
   });
   
-  // Get order types (statuses) breakdown
   const orderStatusMap = new Map<string, {amount: number; count: number}>();
   bills.forEach(bill => {
     if (!bill.order) return;
@@ -306,7 +294,6 @@ async function generateSalesReport(startDate: Date, endDate: Date): Promise<Sale
     });
   });
   
-  // Get top selling items
   const topSellingItemsMap = new Map<string, {
     _id: string;
     name: string;
@@ -338,8 +325,6 @@ async function generateSalesReport(startDate: Date, endDate: Date): Promise<Sale
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 10);
   
-  // Calculate table turnover rate (approximation based on available data)
-  // For simplicity, assuming each bill represents one table and there are 20 tables
   const totalTables = 20;
   const daysInRange = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   const tableTurnoverRate = daysInRange > 0 ? (totalOrders / totalTables) / daysInRange : 0;
@@ -356,12 +341,9 @@ async function generateSalesReport(startDate: Date, endDate: Date): Promise<Sale
   };
 }
 
-// Generate inventory report
 async function generateInventoryReport(): Promise<InventorySummary> {
-  // Get all inventory items
   const items = await Inventory.find().lean();
   
-  // Get orders from the last 30 days to analyze inventory usage
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   
@@ -371,20 +353,15 @@ async function generateInventoryReport(): Promise<InventorySummary> {
     }
   }).lean();
   
-  // Create a map to track ingredient usage
   const ingredientUsageMap = new Map<string, number>();
   
-  // Process orders to calculate ingredient usage
   orders.forEach(order => {
     if (!order.items) return;
     
     order.items.forEach((orderItem: any) => {
-      // In a real system, we would access the ingredients for each menu item
-      // and calculate exact usage amounts
       const menuItemId = orderItem.menuItem.toString();
       const quantity = orderItem.quantity || 1;
       
-      // Simulate adding usage for each ingredient
       if (orderItem.ingredients) {
         orderItem.ingredients.forEach((ingredient: any) => {
           const ingredientId = ingredient.toString();
@@ -397,7 +374,6 @@ async function generateInventoryReport(): Promise<InventorySummary> {
     });
   });
   
-  // Calculate summary statistics
   const totalItems = items.length;
   const totalValue = items.reduce((sum, item) => sum + (item.totalCost || 0), 0);
   
@@ -409,14 +385,12 @@ async function generateInventoryReport(): Promise<InventorySummary> {
     (item.quantity <= item.minStockLevel)
   ).length;
   
-  // Get soon-to-expire items
   const sevenDaysLater = new Date();
   sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
   const expiringItems = items.filter(item => 
     item.expiryDate && new Date(item.expiryDate) <= sevenDaysLater
   ).length;
   
-  // Group items by category with usage data
   const categoriesMap = new Map<string, {
     totalItems: number;
     totalValue: number;
@@ -437,7 +411,6 @@ async function generateInventoryReport(): Promise<InventorySummary> {
     categoryData.totalItems += 1;
     categoryData.totalValue += item.totalCost || 0;
     
-    // Add usage data if available
     const itemId = ((item._id as any) || '').toString();
     if (ingredientUsageMap.has(itemId)) {
       categoryData.totalUsage += ingredientUsageMap.get(itemId) || 0;
@@ -452,7 +425,6 @@ async function generateInventoryReport(): Promise<InventorySummary> {
   }> = [];
   
   categoriesMap.forEach((data, category) => {
-    // Determine movement based on actual usage data
     let avgMovement = 'Medium';
     
     if (data.totalUsage > 0) {
@@ -460,7 +432,6 @@ async function generateInventoryReport(): Promise<InventorySummary> {
       if (avgUsagePerItem > 20) avgMovement = 'High';
       else if (avgUsagePerItem < 5) avgMovement = 'Low';
     } else {
-      // Fallback to item count if no usage data
       if (data.totalItems > 20) avgMovement = 'High';
       if (data.totalItems < 5) avgMovement = 'Low';
     }
@@ -473,10 +444,8 @@ async function generateInventoryReport(): Promise<InventorySummary> {
     });
   });
   
-  // Sort categories by value
   stockCategories.sort((a, b) => b.totalValue - a.totalValue);
   
-  // Get list of low stock items for detailed display
   const lowStockItemList = items
     .filter(item => 
       item.status === 'Low Stock' || 
@@ -503,12 +472,9 @@ async function generateInventoryReport(): Promise<InventorySummary> {
   };
 }
 
-// Generate staff report
 async function generateStaffReport(): Promise<StaffSummary> {
-  // Get all staff members
   const staff = await User.find({ role: { $ne: 'admin' } }).lean();
   
-  // Get orders from the last 30 days to analyze staff performance
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   
@@ -518,10 +484,9 @@ async function generateStaffReport(): Promise<StaffSummary> {
     }
   }).populate({
     path: 'assignedTo',
-    strictPopulate: false // Set strictPopulate to false to avoid errors
+    strictPopulate: false
   }).lean();
   
-  // Create a map to track staff performance
   const staffPerformanceMap = new Map<string, {
     ordersHandled: number,
     ordersCompleted: number,
@@ -529,7 +494,6 @@ async function generateStaffReport(): Promise<StaffSummary> {
     orderTotal: number
   }>();
   
-  // Initialize performance tracking for all staff
   staff.forEach(member => {
     const memberId = ((member._id as any) || '').toString();
     staffPerformanceMap.set(memberId, {
@@ -540,11 +504,9 @@ async function generateStaffReport(): Promise<StaffSummary> {
     });
   });
   
-  // Process orders to calculate staff performance
   orders.forEach(order => {
     if (!order.assignedTo) return;
     
-    // Handle staff assignments to orders
     let staffId;
     if (typeof order.assignedTo === 'string') {
       staffId = order.assignedTo;
@@ -560,20 +522,16 @@ async function generateStaffReport(): Promise<StaffSummary> {
     
     const staffPerformance = staffPerformanceMap.get(staffId)!;
     
-    // Increment orders handled
     staffPerformance.ordersHandled += 1;
     
-    // Count completed orders
     if (order.status === 'completed' || order.status === 'served') {
       staffPerformance.ordersCompleted += 1;
     }
     
-    // Increment tables served (assuming each order is for a unique table)
     if (order.tableId) {
       staffPerformance.tablesServed += 1;
     }
     
-    // Add order total for revenue contribution
     if (order.items && order.items.length > 0) {
       const orderTotal = order.items.reduce((sum: number, item: any) => {
         return sum + ((item.price || 0) * (item.quantity || 1));
@@ -582,10 +540,8 @@ async function generateStaffReport(): Promise<StaffSummary> {
     }
   });
   
-  // Total count
   const totalStaff = staff.length;
   
-  // Group by role
   const roleMap = new Map();
   staff.forEach(member => {
     const role = member.role || 'other';
@@ -600,17 +556,14 @@ async function generateStaffReport(): Promise<StaffSummary> {
     staffByRole.push({ role, count });
   });
   
-  // Sort by count
   staffByRole.sort((a, b) => b.count - a.count);
   
-  // Calculate performance scores based on real metrics
   const topPerformers = staff
     .map(member => {
       const memberId = ((member._id as any) || '').toString();
       const performance = staffPerformanceMap.get(memberId);
       
       if (!performance) {
-        // Fallback if no performance data
         return {
           _id: memberId,
           name: member.name as string,
@@ -619,16 +572,13 @@ async function generateStaffReport(): Promise<StaffSummary> {
         };
       }
       
-      // Calculate performance score based on completion rate and volume
-      let performanceScore = 70; // Base score
+      let performanceScore = 70;
       
-      // If they've handled orders, calculate performance based on completion rate
       if (performance.ordersHandled > 0) {
         const completionRate = performance.ordersCompleted / performance.ordersHandled;
-        performanceScore = Math.round(70 + (completionRate * 25)); // Scale from 70-95
+        performanceScore = Math.round(70 + (completionRate * 25));
       }
       
-      // Add relevant metrics based on role
       let extra = {};
       if (member.role === 'waiter') {
         extra = { tablesServed: performance.tablesServed };
@@ -654,12 +604,9 @@ async function generateStaffReport(): Promise<StaffSummary> {
   };
 }
 
-// Generate menu report
 async function generateMenuReport(startDate: Date, endDate: Date): Promise<MenuSummary> {
-  // Get all menu items
   const menuItems = await MenuItem.find().lean();
   
-  // Get orders in date range to analyze menu item performance
   const orders = await Order.find({
     createdAt: {
       $gte: startDate,
@@ -667,10 +614,8 @@ async function generateMenuReport(startDate: Date, endDate: Date): Promise<MenuS
     }
   }).lean();
   
-  // Count total menu items
   const totalItems = menuItems.length;
   
-  // Create a map to track category counts
   const categoryMap = new Map();
   menuItems.forEach(item => {
     const category = item.category || 'Uncategorized';
@@ -689,10 +634,8 @@ async function generateMenuReport(startDate: Date, endDate: Date): Promise<MenuS
     });
   });
   
-  // Sort by count
   categoryBreakdown.sort((a, b) => b.count - a.count);
   
-  // Create a map of menu item order counts and revenue
   const menuItemStats = new Map();
   menuItems.forEach(item => {
     menuItemStats.set(((item._id as any) || '').toString(), {
@@ -706,7 +649,6 @@ async function generateMenuReport(startDate: Date, endDate: Date): Promise<MenuS
     });
   });
   
-  // Process orders to get item stats
   orders.forEach(order => {
     if (!order.items) return;
     
@@ -720,17 +662,14 @@ async function generateMenuReport(startDate: Date, endDate: Date): Promise<MenuS
     });
   });
   
-  // Convert to array and sort
   const allItems = Array.from(menuItemStats.values());
   
-  // Top ordered items
   const topItems = [...allItems]
     .sort((a, b) => b.orderedCount - a.orderedCount)
     .slice(0, 10);
   
-  // Least ordered items
   const leastOrderedItems = [...allItems]
-    .filter(item => item.orderedCount > 0) // Only include items that were ordered at least once
+    .filter(item => item.orderedCount > 0)
     .sort((a, b) => a.orderedCount - b.orderedCount)
     .slice(0, 5);
   
@@ -742,9 +681,7 @@ async function generateMenuReport(startDate: Date, endDate: Date): Promise<MenuS
   };
 }
 
-// Generate customer report
 async function generateCustomerReport(startDate: Date, endDate: Date): Promise<CustomerSummary> {
-  // Get all bills in the date range to analyze customer behavior
   const bills = await Bill.find({
     createdAt: {
       $gte: startDate,
@@ -752,7 +689,6 @@ async function generateCustomerReport(startDate: Date, endDate: Date): Promise<C
     }
   }).populate('order').lean();
   
-  // Get a previous period of the same length for comparison
   const periodLength = endDate.getTime() - startDate.getTime();
   const previousPeriodEndDate = new Date(startDate.getTime());
   const previousPeriodStartDate = new Date(previousPeriodEndDate.getTime() - periodLength);
@@ -764,7 +700,6 @@ async function generateCustomerReport(startDate: Date, endDate: Date): Promise<C
     }
   }).lean();
   
-  // Get all previous customers for identifying new vs. returning
   const allPreviousCustomers = new Set();
   previousPeriodBills.forEach(bill => {
     if (bill.customerName && bill.customerName !== 'Guest') {
@@ -774,7 +709,6 @@ async function generateCustomerReport(startDate: Date, endDate: Date): Promise<C
     }
   });
   
-  // Create a map to track customer visits and spending with more details
   const customerMap = new Map<string, {
     name: string,
     visits: number,
@@ -783,10 +717,9 @@ async function generateCustomerReport(startDate: Date, endDate: Date): Promise<C
     isNew: boolean,
     preferredItems: Map<string, number>,
     averageSpend: number,
-    visitTimes: number[] // Store hour of day for each visit
+    visitTimes: number[]
   }>();
   
-  // Process current period bills
   bills.forEach(bill => {
     let customerKey = 'Guest';
     
@@ -797,7 +730,6 @@ async function generateCustomerReport(startDate: Date, endDate: Date): Promise<C
     }
     
     if (!customerMap.has(customerKey)) {
-      // Check if this is a new customer (not present in previous period)
       const isNew = !allPreviousCustomers.has(customerKey);
       
       customerMap.set(customerKey, {
@@ -816,16 +748,13 @@ async function generateCustomerReport(startDate: Date, endDate: Date): Promise<C
     customer.visits += 1;
     customer.spent += bill.total;
     
-    // Track visit time (hour of day)
     const visitHour = new Date(bill.createdAt).getHours();
     customer.visitTimes.push(visitHour);
     
-    // Update last visit if this bill is more recent
     if (new Date(bill.createdAt) > new Date(customer.lastVisit)) {
       customer.lastVisit = bill.createdAt;
     }
     
-    // Track ordered items if available
     if (bill.order && bill.order.items) {
       bill.order.items.forEach((item: any) => {
         const itemName = item.name || 'Unknown Item';
@@ -837,14 +766,11 @@ async function generateCustomerReport(startDate: Date, endDate: Date): Promise<C
     }
   });
   
-  // Process map and calculate averages
   customerMap.forEach(customer => {
     customer.averageSpend = customer.visits > 0 ? customer.spent / customer.visits : 0;
   });
   
-  // Convert to array with simplified format for API response
   const customers = Array.from(customerMap.entries()).map(([key, data]) => {
-    // Find most ordered item if any
     let favoriteItem = '';
     let maxCount = 0;
     data.preferredItems.forEach((count, item) => {
@@ -854,7 +780,6 @@ async function generateCustomerReport(startDate: Date, endDate: Date): Promise<C
       }
     });
     
-    // Calculate preferred visit time
     let preferredTime = 'No data';
     if (data.visitTimes.length > 0) {
       const times = data.visitTimes.reduce((acc, hour) => {
@@ -872,7 +797,6 @@ async function generateCustomerReport(startDate: Date, endDate: Date): Promise<C
         }
       });
       
-      // Convert hour to time period
       if (preferredHour < 12) {
         preferredTime = 'Morning';
       } else if (preferredHour < 17) {
@@ -894,16 +818,12 @@ async function generateCustomerReport(startDate: Date, endDate: Date): Promise<C
     };
   });
   
-  // Calculate metrics
   const totalCustomers = customers.length;
   
-  // Customers flagged as new based on previous period comparison
   const newCustomers = customers.filter(c => c.isNew).length;
   
-  // Customers with more than one visit are repeat customers
   const repeatCustomers = customers.filter(c => c.visits > 1).length;
   
-  // Get top customers by amount spent
   const topCustomers = customers
     .sort((a, b) => b.spent - a.spent)
     .slice(0, 10)

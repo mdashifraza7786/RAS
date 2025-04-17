@@ -4,7 +4,6 @@ import Order from '@/models/Order';
 import Table from '@/models/Table';
 import { getServerSession } from 'next-auth';
 
-// GET /api/orders/[id] - Get a specific order
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -12,7 +11,6 @@ export async function GET(
   try {
     const session = await getServerSession();
     
-    // Check if user is authenticated
     if (!session) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -22,7 +20,6 @@ export async function GET(
     
     await connectToDatabase();
     
-    // Find order by ID and populate related data
     const order = await Order.findById(params.id)
       .populate('table', 'number name')
       .populate('waiter', 'name');
@@ -44,7 +41,6 @@ export async function GET(
   }
 }
 
-// PUT /api/orders/[id] - Update an order
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -52,7 +48,6 @@ export async function PUT(
   try {
     const session = await getServerSession();
     
-    // Check if user is authenticated
     if (!session) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -63,9 +58,7 @@ export async function PUT(
     await connectToDatabase();
     const data = await request.json();
     
-    // Check what parts of the order can be updated based on role
     if (session.user.role === 'chef') {
-      // Chef can only update item status or order status
       const allowedFields = ['items', 'status'];
       const requestedUpdates = Object.keys(data);
       
@@ -81,7 +74,6 @@ export async function PUT(
         );
       }
       
-      // If updating items, ensure we're only updating the status field
       if (data.items) {
         const order = await Order.findById(params.id);
         if (!order) {
@@ -91,7 +83,6 @@ export async function PUT(
           );
         }
         
-        // Create a new items array with updated statuses only
         const updatedItems = order.items.map(existingItem => {
           const updatedItem = data.items.find(
             (item: any) => item._id.toString() === existingItem._id.toString()
@@ -111,7 +102,6 @@ export async function PUT(
       }
     }
     
-    // Find and update the order
     const order = await Order.findByIdAndUpdate(
       params.id,
       { $set: data },
@@ -125,16 +115,13 @@ export async function PUT(
       );
     }
     
-    // If order status changes to 'completed', update table status
     if (data.status === 'completed' && order.table) {
-      // Check if there are other active orders for this table
       const otherActiveOrders = await Order.countDocuments({
         table: order.table,
         status: { $nin: ['completed', 'cancelled'] },
         _id: { $ne: order._id }
       });
       
-      // If no other active orders, mark table as available for cleaning
       if (otherActiveOrders === 0) {
         await Table.findByIdAndUpdate(
           order.table,
@@ -153,7 +140,6 @@ export async function PUT(
   }
 }
 
-// DELETE /api/orders/[id] - Delete an order (manager only)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -161,7 +147,6 @@ export async function DELETE(
   try {
     const session = await getServerSession();
     
-    // Check if user is authenticated and has manager role
     if (!session || session.user.role !== 'manager') {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -171,7 +156,6 @@ export async function DELETE(
     
     await connectToDatabase();
     
-    // Get the order before deletion to handle table status update
     const order = await Order.findById(params.id);
     
     if (!order) {
@@ -181,17 +165,14 @@ export async function DELETE(
       );
     }
     
-    // Delete the order
     await Order.findByIdAndDelete(params.id);
     
-    // Check if there are other active orders for this table
     if (order.table) {
       const otherActiveOrders = await Order.countDocuments({
         table: order.table,
         status: { $nin: ['completed', 'cancelled'] }
       });
       
-      // If no other active orders, mark table as available
       if (otherActiveOrders === 0) {
         await Table.findByIdAndUpdate(
           order.table,

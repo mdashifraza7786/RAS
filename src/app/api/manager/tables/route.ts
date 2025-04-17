@@ -13,10 +13,8 @@ interface TableDoc {
   name: string;
 }
 
-// GET /api/manager/tables - Get all tables with additional manager info
 export async function GET(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     
@@ -26,7 +24,6 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const search = searchParams.get('search');
     
-    // Build query
     const query: any = {};
     
     if (status && status !== 'all') {
@@ -40,18 +37,15 @@ export async function GET(request: NextRequest) {
       ];
     }
     
-    // Get tables with current orders
     const tables = await Table.find(query)
       .sort({ number: 1 })
       .lean() as unknown as TableDoc[];
     
-    // Get current orders for each table
     const currentOrders = await Order.find({
       table: { $in: tables.map(t => t._id) },
       status: { $in: ['pending', 'in-progress'] }
     }).lean();
     
-    // Map orders to tables
     const tablesWithOrders = tables.map(table => ({
       ...table,
       currentOrder: currentOrders.find(order => 
@@ -69,17 +63,14 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/manager/tables - Create a new table
 export async function POST(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     
     await connectToDatabase();
     const data = await request.json();
     
-    // Validate required fields
     if (!data.number || !data.capacity || !data.name) {
       return NextResponse.json(
         { error: 'Table number, name, and capacity are required' },
@@ -87,7 +78,6 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Check if table number already exists
     const existingTable = await Table.findOne({ number: data.number });
     if (existingTable) {
       return NextResponse.json(
@@ -107,10 +97,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/manager/tables - Update a table
 export async function PUT(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     
@@ -125,7 +113,6 @@ export async function PUT(request: NextRequest) {
       );
     }
     
-    // If updating table number, check for duplicates
     if (updateData.number) {
       const existingTable = await Table.findOne({
         number: updateData.number,
@@ -163,10 +150,8 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE /api/manager/tables - Delete a table
 export async function DELETE(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     
@@ -181,7 +166,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
     
-    // Check if table has any active orders
     const activeOrder = await Order.findOne({
       table: id,
       status: { $in: ['pending', 'in-progress'] }

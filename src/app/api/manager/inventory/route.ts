@@ -7,10 +7,8 @@ import { Types } from 'mongoose';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { checkManagerAuth } from '@/lib/api-auth';
 
-// GET /api/manager/inventory - Get inventory items
 export async function GET(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     
@@ -23,7 +21,6 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     
-    // Build query
     const query: any = {};
     
     if (category && category !== 'all') {
@@ -45,17 +42,14 @@ export async function GET(request: NextRequest) {
       ];
     }
     
-    // Get total count for pagination
     const total = await Inventory.countDocuments(query);
     
-    // Get inventory items with pagination
     const items = await Inventory.find(query)
       .sort({ category: 1, name: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean();
     
-    // Calculate expiry status for each item
     const itemsWithExpiryStatus = items.map(item => {
       const now = new Date();
       const expiryDate = new Date(item.expiryDate);
@@ -87,10 +81,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/manager/inventory - Add or update inventory item
 export async function POST(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     
@@ -99,7 +91,6 @@ export async function POST(request: NextRequest) {
     
     console.log("Received inventory data:", data);
     
-    // Validate required fields
     if (!data.name || !data.category || !data.quantity || !data.unit || 
         !data.costPerUnit || !data.supplier || !data.minStockLevel) {
       return NextResponse.json(
@@ -108,14 +99,11 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Calculate total cost
     data.totalCost = data.quantity * data.costPerUnit;
     
-    // Check if item already exists
     let item;
     
     if (data._id) {
-      // Update existing item
       item = await Inventory.findByIdAndUpdate(
         data._id,
         data,
@@ -129,7 +117,6 @@ export async function POST(request: NextRequest) {
         );
       }
     } else {
-      // Create new item
       item = await Inventory.create(data);
     }
     
@@ -143,10 +130,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/manager/inventory - Update inventory quantities
 export async function PUT(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     
@@ -170,7 +155,6 @@ export async function PUT(request: NextRequest) {
       );
     }
     
-    // Update quantity based on type
     const newQuantity = type === 'add' 
       ? item.quantity + quantity
       : item.quantity - quantity;
@@ -182,13 +166,11 @@ export async function PUT(request: NextRequest) {
       );
     }
     
-    // Update item
     const updatedItem = await Inventory.findByIdAndUpdate(
       id,
       {
         quantity: newQuantity,
         lastRestocked: type === 'add' ? new Date() : item.lastRestocked,
-        // Re-calculate total cost
         totalCost: newQuantity * item.costPerUnit
       },
       { new: true }
@@ -204,10 +186,8 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE /api/manager/inventory - Delete inventory item
 export async function DELETE(request: NextRequest) {
   try {
-    // Check manager authentication
     const authError = await checkManagerAuth();
     if (authError) return authError;
     
@@ -222,7 +202,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
     
-    // Check if item is used in any active orders
     const activeOrder = await Order.findOne({
       'items.menuItem': id,
       status: { $in: ['pending', 'in-progress'] }
