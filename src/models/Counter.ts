@@ -17,7 +17,6 @@ const counterSchema = new Schema<ICounter>({
   }
 });
 
-// Check if model already exists to prevent overwrite during hot reload in development
 const Counter = mongoose.models.Counter || mongoose.model<ICounter>('Counter', counterSchema);
 
 export default Counter; 
