@@ -79,7 +79,7 @@ export const useChef = () => {
   const updateOrderStatus = useCallback(async (orderId: string, status: 'in-progress' | 'ready') => {
     try {
       setLoading(true);
-      const response = await axios.patch(`${API_URL}/orders/${orderId}/status`, { status });
+      const response = await axios.put(`${API_URL}/orders/${orderId}/status`, { status });
       
       // Update local state
       setOrders(prevOrders => 
