@@ -85,12 +85,10 @@ const inventorySchema = new Schema<IInventory>(
   }
 );
 
-// Middleware to calculate totalCost and update status before saving
 inventorySchema.pre('save', function(next) {
   // Calculate total cost
   this.totalCost = this.quantity * this.costPerUnit;
   
-  // Update status based on quantity and minStockLevel
   if (this.quantity <= 0) {
     this.status = 'Out of Stock';
   } else if (this.quantity <= this.minStockLevel * 0.3) {
@@ -104,14 +102,12 @@ inventorySchema.pre('save', function(next) {
   next();
 });
 
-// Add middleware for findOneAndUpdate operations to update status
 inventorySchema.pre('findOneAndUpdate', function(next) {
   const update = this.getUpdate() as any;
   if (update && update.quantity !== undefined) {
     const quantity = update.quantity;
     const minStockLevel = update.minStockLevel || 0;
     
-    // Update status based on quantity and minStockLevel
     if (quantity <= 0) {
       update.status = 'Out of Stock';
     } else if (quantity <= minStockLevel * 0.3) {
@@ -122,7 +118,6 @@ inventorySchema.pre('findOneAndUpdate', function(next) {
       update.status = 'In Stock';
     }
     
-    // Recalculate total cost if we have costPerUnit
     if (update.costPerUnit !== undefined) {
       update.totalCost = quantity * update.costPerUnit;
     }
@@ -131,7 +126,6 @@ inventorySchema.pre('findOneAndUpdate', function(next) {
   next();
 });
 
-// Virtual for days until expiry
 inventorySchema.virtual('daysUntilExpiry').get(function() {
   const now = new Date();
   const expiryDate = new Date(this.expiryDate);
@@ -139,12 +133,10 @@ inventorySchema.virtual('daysUntilExpiry').get(function() {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 });
 
-// Delete and recreate model for dev purposes
 if (process.env.NODE_ENV === 'development' && mongoose.models.Inventory) {
   delete mongoose.models.Inventory;
 }
 
-// Create the model with the schema
 const Inventory = mongoose.models.Inventory || mongoose.model<IInventory>('Inventory', inventorySchema);
 
 export default Inventory; 
