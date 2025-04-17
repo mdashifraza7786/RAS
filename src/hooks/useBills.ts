@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { API_URL } from '@/config/constants';
 
-// Define the Order and OrderItem types
 interface OrderItem {
   _id: string;
   menuItem: { _id: string; name: string; price: number };
@@ -88,17 +87,14 @@ const useBills = () => {
   const [error, setError] = useState<Error | null>(null);
   const [filters, setFilters] = useState<BillFilters>({});
 
-  // Fetch bills with optional filters
   const fetchBills = useCallback(async (page = 1, limit = 20) => {
     try {
       setLoading(true);
       
-      // Build query params from filters
       const params = new URLSearchParams();
       params.append('page', page.toString());
       params.append('limit', limit.toString());
       
-      // Add filters to params if they exist
       if (filters.paymentStatus) params.append('paymentStatus', filters.paymentStatus);
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
@@ -118,7 +114,6 @@ const useBills = () => {
     }
   }, [filters]);
 
-  // Function to get all bills without pagination (for simpler use cases)
   const getAllBills = useCallback(async () => {
     try {
       setLoading(true);
@@ -132,7 +127,6 @@ const useBills = () => {
     }
   }, []);
 
-  // Function to get a single bill by ID
   const getBill = useCallback(async (billId: string) => {
     try {
       setLoading(true);
@@ -146,12 +140,10 @@ const useBills = () => {
     }
   }, []);
 
-  // Function to create a new bill
   const createBill = useCallback(async (billData: BillCreateData) => {
     try {
       setLoading(true);
       const response = await axios.post(`/api/waiter/bills`, billData);
-      // Refresh bills after creating a new one
       await fetchBills();
       return response.data.bill;
     } catch (err) {
@@ -162,13 +154,11 @@ const useBills = () => {
     }
   }, [fetchBills]);
 
-  // Function to update a bill
   const updateBill = useCallback(async (billId: string, updateData: BillUpdateData) => {
     try {
       setLoading(true);
       const response = await axios.put(`/api/waiter/bills/${billId}`, updateData);
       
-      // Update local state
       setBills(prevBills =>
         prevBills.map(bill =>
           bill._id === billId ? { ...bill, ...updateData } : bill
@@ -184,13 +174,11 @@ const useBills = () => {
     }
   }, []);
 
-  // Function to delete a bill
   const deleteBill = useCallback(async (billId: string) => {
     try {
       setLoading(true);
       await axios.delete(`/api/waiter/bills/${billId}`);
       
-      // Update local state
       setBills(prevBills => prevBills.filter(bill => bill._id !== billId));
       
       return true;
@@ -202,12 +190,10 @@ const useBills = () => {
     }
   }, []);
 
-  // Function to update filters
   const updateFilters = useCallback((newFilters: BillFilters) => {
     setFilters(newFilters);
   }, []);
 
-  // Load bills on mount or when filters change
   useEffect(() => {
     fetchBills();
   }, [fetchBills]);
