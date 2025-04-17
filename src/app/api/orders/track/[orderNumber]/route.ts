@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
+import mongoose from "mongoose";
 import { getOrderStatusMapping } from "@/lib/utils";
 
 /**
@@ -24,14 +25,29 @@ export async function GET(
 
     await connectDB();
 
-    // Find the order by order number
-    const order = await Order.findOne({ orderNumber: parseInt(orderNumber) })
-      .populate('table')
-      .populate('waiter', 'name')
-      .populate({
-        path: 'items.menuItem',
-        select: 'name price',
-      });
+    let order;
+
+    // Try to find by order number first
+    if (!isNaN(parseInt(orderNumber))) {
+      order = await Order.findOne({ orderNumber: parseInt(orderNumber) })
+        .populate('table')
+        .populate('waiter', 'name')
+        .populate({
+          path: 'items.menuItem',
+          select: 'name price',
+        });
+    }
+
+    // If not found and it's a valid MongoDB ObjectId, try finding by _id
+    if (!order && mongoose.Types.ObjectId.isValid(orderNumber)) {
+      order = await Order.findById(orderNumber)
+        .populate('table')
+        .populate('waiter', 'name')
+        .populate({
+          path: 'items.menuItem',
+          select: 'name price',
+        });
+    }
 
     if (!order) {
       return NextResponse.json(
@@ -54,9 +70,9 @@ export async function GET(
       status: getOrderStatusMapping(order.status),
       items: order.items.map((item: any) => ({
         id: item._id.toString(),
-        name: item.name || "Unknown Item",
+        name: item.menuItem?.name || item.name || "Unknown Item",
         quantity: item.quantity,
-        price: item.price,
+        price: item.menuItem?.price || item.price,
         status: getOrderStatusMapping(item.status || order.status),
       })),
       subtotal: order.subtotal,
@@ -72,7 +88,7 @@ export async function GET(
   } catch (error: any) {
     console.error("Error fetching order:", error);
     return NextResponse.json(
-      { error: "Failed to fetch order" },
+      { error: error.message || "Failed to fetch order" },
       { status: 500 }
     );
   }

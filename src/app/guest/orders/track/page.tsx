@@ -7,6 +7,7 @@ import { formatCurrency } from '@/lib/utils';
 import axios from 'axios';
 import { API_URL } from '@/config/constants';
 import Link from 'next/link';
+import { toast } from 'react-hot-toast';
 
 interface OrderItem {
   id: string;
@@ -53,11 +54,14 @@ function TrackOrderContent() {
       setLoading(true);
       try {
         const response = await axios.get(`${API_URL}/orders/track/${orderNumber}`);
+        if (!response.data || !response.data.order) {
+          throw new Error('Invalid response format');
+        }
         setOrder(response.data.order);
         setError(null);
-      } catch (err) {
-        setError('Failed to fetch order details');
+      } catch (err: any) {
         console.error('Error fetching order:', err);
+        setError(err.response?.data?.error || 'Failed to fetch order details');
       } finally {
         setLoading(false);
       }
@@ -90,9 +94,13 @@ function TrackOrderContent() {
 
         const { phone } = JSON.parse(guestInfo);
         const response = await axios.get(`${API_URL}/orders/guest/history?phone=${phone}`);
+        if (!response.data || !response.data.orders) {
+          throw new Error('Invalid response format');
+        }
         setOrderHistory(response.data.orders);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching order history:', err);
+        toast.error(err.response?.data?.error || 'Failed to fetch order history');
       } finally {
         setLoadingHistory(false);
       }
