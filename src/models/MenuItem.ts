@@ -8,7 +8,7 @@ export interface IMenuItem extends Document {
   image: string;
   available: boolean;
   popular: boolean;
-  preparationTime: number; // in minutes
+  preparationTime: number; 
   ingredients: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -63,7 +63,6 @@ const menuItemSchema = new Schema<IMenuItem>(
   }
 );
 
-// Check if model already exists to prevent overwrite during hot reload in development
 const MenuItem = mongoose.models.MenuItem || mongoose.model<IMenuItem>('MenuItem', menuItemSchema);
 
 export default MenuItem; 
