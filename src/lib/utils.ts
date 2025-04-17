@@ -1,6 +1,4 @@
-/**
- * Maps internal order status to client-facing status
- */
+
 export function getOrderStatusMapping(status: string): 'pending' | 'preparing' | 'ready' | 'delivered' | 'cancelled' {
   switch (status) {
     case 'pending':
@@ -18,9 +16,7 @@ export function getOrderStatusMapping(status: string): 'pending' | 'preparing' |
   }
 }
 
-/**
- * Formats a currency value to display with the proper currency symbol
- */
+
 export function formatCurrency(amount: number, currency: string = 'INR'): string {
   return new Intl.NumberFormat('en-IN', { 
     style: 'currency', 
@@ -28,9 +24,7 @@ export function formatCurrency(amount: number, currency: string = 'INR'): string
   }).format(amount);
 }
 
-/**
- * Generates a random string of specified length
- */
+
 export function generateRandomString(length: number): string {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
@@ -42,17 +36,13 @@ export function generateRandomString(length: number): string {
   return result;
 }
 
-/**
- * Truncates text to a specified length and adds ellipsis
- */
+
 export function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
 }
 
-/**
- * Formats a date to a human-readable string
- */
+
 export function formatDate(date: Date | string, format: 'short' | 'long' = 'short'): string {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   
@@ -72,9 +62,7 @@ export function formatDate(date: Date | string, format: 'short' | 'long' = 'shor
   });
 }
 
-/**
- * Formats time to a human-readable string
- */
+
 export function formatTime(date: Date | string): string {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   
@@ -84,9 +72,7 @@ export function formatTime(date: Date | string): string {
   });
 }
 
-/**
- * Checks if a value is empty (null, undefined, empty string, empty array, empty object)
- */
+
 export function isEmpty(value: any): boolean {
   if (value === null || value === undefined) return true;
   if (typeof value === 'string' && value.trim() === '') return true;
@@ -102,9 +88,7 @@ export async function generateOrderNumber(): Promise<number> {
   const month = (today.getMonth() + 1).toString().padStart(2, '0');
   const day = today.getDate().toString().padStart(2, '0');
   
-  // Generate a random 4-digit number
   const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
   
-  // Combine into a unique order number
   return parseInt(`${year}${month}${day}${random}`);
 } 
