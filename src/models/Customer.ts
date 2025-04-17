@@ -34,7 +34,7 @@ const customerSchema = new Schema<ICustomer>(
         /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
         'Please provide a valid email'
       ],
-      sparse: true // Allows null/undefined values to be unique
+      sparse: true 
     },
     visits: {
       type: Number,
@@ -64,7 +64,6 @@ const customerSchema = new Schema<ICustomer>(
   }
 );
 
-// Check if model already exists to prevent overwrite during hot reload in development
 const Customer = mongoose.models.Customer || mongoose.model<ICustomer>('Customer', customerSchema);
 
 export default Customer; 
