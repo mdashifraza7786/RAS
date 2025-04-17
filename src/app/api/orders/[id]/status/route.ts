@@ -1,124 +1,144 @@
-import { NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import Order from '@/models/Order';
+import { NextRequest, NextResponse } from "next/server";
+import connectDB from "@/lib/mongodb";
+import Order from "@/models/Order";
+import mongoose from "mongoose";
 
-export async function GET(
-  request: Request,
+export async function PUT(
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Connect to database
-    const mongoUri = process.env.MONGODB_URI;
-    if (!mongoUri) {
-      return NextResponse.json(
-        { error: 'Database connection string is not defined' },
-        { status: 500 }
-      );
-    }
-    await mongoose.connect(mongoUri);
+    await connectDB();
 
     const { id } = params;
-
-    // Handle special "current" ID for getting all active orders
-    if (id === 'current') {
-      return NextResponse.json(
-        { error: 'To get all current orders, use the /orders/table/{tableId} endpoint' },
-        { status: 400 }
-      );
-    }
 
     // Validate orderId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
-        { error: 'Invalid order ID format' },
+        { error: "Invalid order ID format" },
         { status: 400 }
       );
     }
 
-    // Get the order
-    const order = await Order.findById(id).select('status items').lean();
-    
-    if (!order) {
+    // Get request body
+    const body = await request.json();
+    const { status } = body;
+
+    // Validate status
+    const validStatuses = ['pending', 'preparing', 'ready', 'delivered', 'cancelled'];
+    if (!status || !validStatuses.includes(status)) {
       return NextResponse.json(
-        { error: 'Order not found' },
+        { error: "Invalid status value. Must be one of: " + validStatuses.join(', ') },
+        { status: 400 }
+      );
+    }
+
+    // Find and update the order
+    const updatedOrder = await Order.findByIdAndUpdate(
+      id,
+      { 
+        $set: { 
+          status,
+          ...(status === 'preparing' ? { startedAt: new Date() } : {}),
+          ...(status === 'ready' ? { completedAt: new Date() } : {})
+        }
+      },
+      { new: true }
+    ).populate('waiter', 'name')
+     .populate('table', 'number name');
+
+    if (!updatedOrder) {
+      return NextResponse.json(
+        { error: "Order not found" },
         { status: 404 }
       );
     }
 
-    // Return the order status and item statuses
-    return NextResponse.json({
-      status: order.status as string,
-      items: (order.items || []).map((item: any) => ({
-        id: item._id,
-        status: item.status
-      }))
-    }, { status: 200 });
-  } catch (error) {
-    console.error('Error fetching order status:', error);
+    // Format the response
+    const formattedOrder = {
+      id: updatedOrder._id.toString(),
+      orderNumber: updatedOrder.orderNumber,
+      status: updatedOrder.status,
+      customerName: updatedOrder.customerName,
+      tableId: updatedOrder.table ? (updatedOrder.table as any)._id.toString() : undefined,
+      tableName: updatedOrder.table ? (updatedOrder.table as any).name : undefined,
+      waiter: updatedOrder.waiter ? {
+        id: (updatedOrder.waiter as any)._id.toString(),
+        name: (updatedOrder.waiter as any).name
+      } : undefined,
+      items: updatedOrder.items.map((item: any) => ({
+        id: item._id.toString(),
+        name: item.name,
+        quantity: item.quantity,
+        status: item.status || updatedOrder.status
+      })),
+      startedAt: updatedOrder.startedAt,
+      completedAt: updatedOrder.completedAt,
+      updatedAt: updatedOrder.updatedAt
+    };
+
+    return NextResponse.json({ 
+      message: "Order status updated successfully",
+      order: formattedOrder 
+    });
+
+  } catch (error: any) {
+    console.error("Error updating order status:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch order status' },
+      { error: error.message || "Failed to update order status" },
       { status: 500 }
     );
   }
 }
 
-export async function PATCH(
-  request: Request,
+export async function GET(
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Connect to database
-    const mongoUri = process.env.MONGODB_URI;
-    if (!mongoUri) {
-      return NextResponse.json(
-        { error: 'Database connection string is not defined' },
-        { status: 500 }
-      );
-    }
-    await mongoose.connect(mongoUri);
+    await connectDB();
 
     const { id } = params;
 
     // Validate orderId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
-        { error: 'Invalid order ID format' },
+        { error: "Invalid order ID format" },
         { status: 400 }
       );
     }
 
-    // Get the request body
-    const body = await request.json();
-    const { status } = body;
+    // Find the order
+    const order = await Order.findById(id)
+      .select('status items startedAt completedAt')
+      .populate('waiter', 'name')
+      .lean();
 
-    // Validate status
-    const validStatuses = ['pending', 'in-progress', 'ready', 'served', 'completed', 'cancelled'];
-    if (!status || !validStatuses.includes(status)) {
+    if (!order) {
       return NextResponse.json(
-        { error: 'Invalid status value' },
-        { status: 400 }
-      );
-    }
-
-    // Update the order
-    const updatedOrder = await Order.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true, runValidators: true }
-    ).select('status').lean();
-
-    if (!updatedOrder) {
-      return NextResponse.json(
-        { error: 'Order not found' },
+        { error: "Order not found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ status: updatedOrder.status as string }, { status: 200 });
-  } catch (error) {
-    console.error('Error updating order status:', error);
+    // Format the response
+    const formattedOrder = {
+      id: order._id.toString(),
+      status: order.status,
+      items: order.items.map((item: any) => ({
+        id: item._id.toString(),
+        status: item.status || order.status
+      })),
+      startedAt: order.startedAt,
+      completedAt: order.completedAt
+    };
+
+    return NextResponse.json({ order: formattedOrder });
+
+  } catch (error: any) {
+    console.error("Error fetching order status:", error);
     return NextResponse.json(
-      { error: 'Failed to update order status' },
+      { error: error.message || "Failed to fetch order status" },
       { status: 500 }
     );
   }
