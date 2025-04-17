@@ -1,275 +1,240 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useGuest } from '@/hooks/useGuests';
-import { FaShoppingCart, FaUtensils, FaSearch, FaSpinner } from 'react-icons/fa';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { FaShoppingCart, FaSpinner, FaMinus, FaPlus, FaTrash, FaArrowRight } from 'react-icons/fa';
+import { formatCurrency } from '@/lib/utils';
+import { useCart } from '@/contexts/CartContext';
+import { toast } from 'react-hot-toast';
+import axios from 'axios';
+import { API_URL } from '@/config/constants';
 import Link from 'next/link';
 
-export default function GuestMenuPage() {
-  const { 
-    menuItems: apiMenuItems, 
-    getMenuItems, 
-    getCategories, 
-    loading, 
-    error, 
-    tableId, 
-    selectTable
-  } = useGuest();
-  
-  const [categories, setCategories] = useState<{_id: string, name: string}[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [cartItems, setCartItems] = useState<{
-    menuItemId: string;
-    name: string;
-    price: number;
-    quantity: number;
-    notes?: string;
-  }[]>([]);
-  
-  // Fetch menu categories and items on mount
+interface MenuItem {
+  _id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  image: string;
+  available: boolean;
+  preparationTime: number;
+}
+
+export default function MenuPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { items, addItem, updateQuantity, removeItem, total, itemCount } = useCart();
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Get search query from URL params
+  const searchQuery = searchParams.get('search') || '';
+
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const categoriesData = await getCategories();
-        setCategories(categoriesData);
-        await getMenuItems();
-      } catch (err) {
-        console.error("Failed to fetch initial data", err);
-      }
+    // Check if guest info exists
+    const guestInfo = localStorage.getItem('guestInfo');
+    if (!guestInfo) {
+      router.push('/guest');
+      return;
     }
-    fetchData();
-  }, [getCategories, getMenuItems]);
-  
-  // Load cart from localStorage
+
+    fetchMenuItems();
+  }, [router]);
+
   useEffect(() => {
-    const storedCart = localStorage.getItem('guest_cart');
-    if (storedCart) {
-      try {
-        setCartItems(JSON.parse(storedCart));
-      } catch (err) {
-        console.error('Failed to parse cart data', err);
-      }
-    }
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
-  
-  // Save cart to localStorage when it changes
-  useEffect(() => {
-    localStorage.setItem('guest_cart', JSON.stringify(cartItems));
-  }, [cartItems]);
-  
-  // Handle category selection
-  const handleCategorySelect = (categoryId: string) => {
-    setSelectedCategory(categoryId);
+
+  const fetchMenuItems = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API_URL}/menu-items`);
+      setMenuItems(response.data.menuItems);
+    } catch (err) {
+      setError('Failed to load menu items');
+      console.error('Error fetching menu items:', err);
+    } finally {
+      setLoading(false);
+    }
   };
-  
-  // Handle search
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+
+  const categories = ['all', ...new Set(menuItems.map(item => item.category))];
+
+  const filteredItems = menuItems.filter(item => {
+    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         item.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch && item.available;
+  });
+
+  const handleAddToCart = (item: MenuItem) => {
+    addItem({
+      menuItemId: item._id,
+      name: item.name,
+      price: item.price,
+      quantity: 1,
+      image: item.image
+    });
+    toast.success(`${item.name} added to cart`);
   };
-  
-  // Add item to cart
-  const addToCart = (menuItem: {
-    _id: string;
-    name: string;
-    price: number;
-    available: boolean;
-  }) => {
-    const existingItemIndex = cartItems.findIndex(item => item.menuItemId === menuItem._id);
-    
-    if (existingItemIndex >= 0) {
-      // Item exists, update quantity
-      const updatedItems = [...cartItems];
-      updatedItems[existingItemIndex].quantity += 1;
-      setCartItems(updatedItems);
+
+  const getItemQuantity = (menuItemId: string) => {
+    const cartItem = items.find(item => item.menuItemId === menuItemId);
+    return cartItem?.quantity || 0;
+  };
+
+  const handleUpdateQuantity = (menuItemId: string, newQuantity: number) => {
+    if (newQuantity === 0) {
+      removeItem(menuItemId);
     } else {
-      // Add new item to cart
-      setCartItems([
-        ...cartItems,
-        {
-          menuItemId: menuItem._id,
-          name: menuItem.name,
-          price: menuItem.price,
-          quantity: 1,
-          notes: ''
-        }
-      ]);
+      updateQuantity(menuItemId, newQuantity);
     }
   };
-  
-  // Calculate total
-  const calculateTotal = () => {
-    return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
-  };
-  
-  // Filter displayed menu items based on search term and category
-  const filteredMenuItems = apiMenuItems
-    .filter(item => 
-      (selectedCategory ? item.category === selectedCategory : true) &&
-      (searchTerm ? 
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchTerm.toLowerCase())
-      : true)
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <FaSpinner className="animate-spin text-amber-500 text-4xl" />
+      </div>
     );
-  
-  // Mock table selection for demo
-  useEffect(() => {
-    if (!tableId) {
-      selectTable('table123'); // For demo purposes
-    }
-  }, [tableId, selectTable]);
-  
-  return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-indigo-600 text-white p-4 shadow-md">
-        <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold flex items-center">
-            <FaUtensils className="mr-2" /> Our Menu
-          </h1>
-          <Link href="/guest/cart" className="relative">
-            <FaShoppingCart className="text-2xl" />
-            {cartItems.length > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                {cartItems.reduce((total, item) => total + item.quantity, 0)}
-              </span>
-            )}
-          </Link>
-        </div>
-      </header>
-      
-      {/* Search & Filters */}
-      <div className="bg-white shadow-md">
-        <div className="container mx-auto p-4">
-          <form onSubmit={handleSearch} className="mb-4">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search menu items..."
-                className="w-full p-2 pl-10 pr-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FaSearch className="text-gray-400" />
-              </div>
-            </div>
-          </form>
-          
-          <div className="overflow-x-auto">
-            <div className="flex space-x-2 pb-2">
-              <button
-                onClick={() => handleCategorySelect('')}
-                className={`px-4 py-2 rounded-full whitespace-nowrap ${
-                  selectedCategory === '' 
-                    ? 'bg-indigo-600 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                All Items
-              </button>
-              {categories.map(category => (
-                <button
-                  key={category._id}
-                  onClick={() => handleCategorySelect(category._id)}
-                  className={`px-4 py-2 rounded-full whitespace-nowrap ${
-                    selectedCategory === category._id 
-                      ? 'bg-indigo-600 text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  {category.name}
-                </button>
-              ))}
-            </div>
-          </div>
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="max-w-lg mx-auto bg-white rounded-lg shadow-md p-6 text-center">
+          <p className="text-red-500 mb-4">{error}</p>
+          <button
+            onClick={fetchMenuItems}
+            className="bg-amber-500 text-white px-4 py-2 rounded-md hover:bg-amber-600"
+          >
+            Try Again
+          </button>
         </div>
       </div>
-      
-      {/* Loading state */}
-      {loading && (
-        <div className="flex justify-center items-center h-64">
-          <FaSpinner className="animate-spin text-indigo-600 text-3xl" />
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 pb-32">
+      <div className="max-w-7xl mx-auto mb-8">
+        {/* Categories */}
+        <div className="flex overflow-x-auto pb-2 mb-6 gap-2">
+          {categories.map(category => (
+            <button
+              key={category}
+              onClick={() => setSelectedCategory(category)}
+              className={`px-4 py-2 rounded-full whitespace-nowrap ${
+                selectedCategory === category
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {category.charAt(0).toUpperCase() + category.slice(1)}
+            </button>
+          ))}
         </div>
-      )}
-      
-      {/* Error state */}
-      {error && (
-        <div className="container mx-auto p-4">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            <p>Failed to load menu items. Please try again.</p>
-          </div>
-        </div>
-      )}
-      
-      {/* Menu items */}
-      <div className="container mx-auto p-4">
-        {!loading && !error && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredMenuItems.map(item => (
-              <div key={item._id} className="bg-white rounded-lg shadow-md overflow-hidden">
+      </div>
+
+      {/* Menu Items Grid */}
+      <div className="max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredItems.map(item => {
+            const quantity = getItemQuantity(item._id);
+            
+            return (
+              <div key={item._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                 {item.image && (
-                  <div 
-                    className="h-48 bg-cover bg-center"
-                    style={{ backgroundImage: `url(${item.image})` }}
-                  ></div>
+                  <div className="relative h-48">
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
                 )}
                 
                 <div className="p-4">
-                  <div className="flex justify-between items-start">
-                    <h3 className="text-lg font-semibold">{item.name}</h3>
-                    <span className="font-bold text-indigo-600">₹{item.price.toFixed(2)}</span>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">{item.name}</h3>
+                  <p className="text-gray-600 text-sm mb-4">{item.description}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-bold text-amber-500">
+                      {formatCurrency(item.price)}
+                    </span>
+                    {quantity === 0 ? (
+                      <button
+                        onClick={() => handleAddToCart(item)}
+                        className="bg-amber-500 text-white px-4 py-2 rounded-md hover:bg-amber-600 flex items-center gap-2"
+                      >
+                        <FaShoppingCart />
+                        Add to Cart
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleUpdateQuantity(item._id, quantity - 1)}
+                          className="p-2 rounded-full hover:bg-gray-100"
+                        >
+                          {quantity === 1 ? <FaTrash className="text-red-500" /> : <FaMinus className="text-gray-500" />}
+                        </button>
+                        <span className="w-8 text-center font-medium">{quantity}</span>
+                        <button
+                          onClick={() => handleUpdateQuantity(item._id, quantity + 1)}
+                          className="p-2 rounded-full hover:bg-gray-100"
+                        >
+                          <FaPlus className="text-gray-500" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  
-                  <p className="text-gray-600 text-sm mt-1 line-clamp-2">{item.description}</p>
-                  
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {item.isVegetarian && (
-                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Vegetarian</span>
-                    )}
-                    {item.isVegan && (
-                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Vegan</span>
-                    )}
-                    {item.isGlutenFree && (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">Gluten Free</span>
-                    )}
-                  </div>
-                  
-                  <div className="flex justify-between items-center mt-4">
-                    <span className="text-sm text-gray-500">Prep time: {item.preparationTime} mins</span>
-                    <button 
-                      onClick={() => addToCart(item)}
-                      disabled={!item.available}
-                      className={`px-4 py-2 rounded-md text-white ${
-                        item.available 
-                          ? 'bg-indigo-600 hover:bg-indigo-700' 
-                          : 'bg-gray-400 cursor-not-allowed'
-                      }`}
-                    >
-                      {item.available ? 'Add to Order' : 'Not Available'}
-                    </button>
+                  <div className="mt-2 text-sm text-gray-500">
+                    Prep time: {item.preparationTime} mins
                   </div>
                 </div>
               </div>
-            ))}
+            );
+          })}
+        </div>
+
+        {filteredItems.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-500">No menu items found matching your criteria.</p>
           </div>
         )}
       </div>
-      
-      {/* Floating cart preview */}
-      {cartItems.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg p-4">
-          <div className="container mx-auto">
-            <div className="flex justify-between items-center">
-              <div>
-                <span className="font-semibold">{cartItems.reduce((total, item) => total + item.quantity, 0)} item(s)</span>
-                <span className="ml-2 font-bold">₹{calculateTotal().toFixed(2)}</span>
+
+      {/* Sticky Cart Total */}
+      {itemCount > 0 && (
+        <div className={`fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg ${
+          isMobile ? 'mb-16' : ''
+        }`}>
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <FaShoppingCart className="text-amber-500" />
+                  <span className="font-medium">{itemCount} items</span>
+                </div>
+                <div className="text-lg font-bold text-amber-500">
+                  {formatCurrency(total)}
+                </div>
               </div>
-              <Link 
+              <Link
                 href="/guest/cart"
-                className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700"
+                className="bg-amber-500 text-white px-6 py-2 rounded-md hover:bg-amber-600 flex items-center gap-2"
               >
-                View Order
+                Checkout <FaArrowRight />
               </Link>
             </div>
           </div>

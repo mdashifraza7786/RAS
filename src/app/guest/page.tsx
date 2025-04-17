@@ -44,17 +44,17 @@ export default function GuestPage() {
     if (validateForm()) {
       setIsSubmitting(true);
       
-      // In a real application, you would make an API call to register the guest
-      // For now, we'll simulate a delay and then redirect
-      setTimeout(() => {
-        if (typeof window !== 'undefined') {
-          // Store guest information in localStorage for later use
-          localStorage.setItem('guestInfo', JSON.stringify({ name, phone }));
-        }
-        
-        // Redirect to the menu page
-        router.push('/guest/menu');
-      }, 1000);
+      // Store guest information in localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('guestInfo', JSON.stringify({ 
+          name, 
+          phone,
+          timestamp: new Date().toISOString()
+        }));
+      }
+      
+      // Redirect to the menu page
+      router.push('/guest/menu');
     }
   };
 
@@ -148,11 +148,8 @@ export default function GuestPage() {
                 )}
               </button>
             </form>
-
-            
           </div>
         </div>
-
       </div>
     </div>
   );
