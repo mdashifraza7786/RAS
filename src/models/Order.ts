@@ -163,9 +163,7 @@ const orderSchema = new Schema<IOrder>(
   }
 );
 
-// Add counter for generating unique sequential order numbers
 orderSchema.statics.getNextOrderNumber = async function() {
-  // Ensure Counter model exists
   const CounterModel = mongoose.models.Counter || mongoose.model('Counter', new mongoose.Schema({
     name: { type: String, required: true, unique: true },
     value: { type: Number, default: 0 }
@@ -180,7 +178,6 @@ orderSchema.statics.getNextOrderNumber = async function() {
   return counter.value;
 };
 
-// Pre-save hook to handle calculations and validations
 orderSchema.pre('save', function(this: any, next) {
   // Calculate totals
   if (this.isModified('items')) {
@@ -192,12 +189,10 @@ orderSchema.pre('save', function(this: any, next) {
   next();
 });
 
-// Add types to the static methods
 interface OrderModel extends mongoose.Model<IOrder> {
   getNextOrderNumber(): Promise<number>;
 }
 
-// Check if model already exists to prevent overwrite during hot reload in development
 const Order = (mongoose.models.Order || mongoose.model<IOrder, OrderModel>('Order', orderSchema)) as OrderModel;
 
 export default Order; 
