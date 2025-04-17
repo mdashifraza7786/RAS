@@ -15,6 +15,8 @@ export default function CartPage() {
   const { items, updateQuantity, removeItem, total, clearCart } = useCart();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
+  const [tableNumber, setTableNumber] = useState('');
+  const [isValidatingTable, setIsValidatingTable] = useState(false);
 
   const handleQuantityChange = (menuItemId: string, newQuantity: number) => {
     updateQuantity(menuItemId, newQuantity);
@@ -25,14 +27,39 @@ export default function CartPage() {
     toast.success('Item removed from cart');
   };
 
+  const validateTableNumber = async (number: string) => {
+    try {
+      setIsValidatingTable(true);
+      const response = await axios.get(`${API_URL}/tables/${number}/availability`);
+      return response.data.isAvailable;
+    } catch (error) {
+      console.error('Error validating table:', error);
+      return false;
+    } finally {
+      setIsValidatingTable(false);
+    }
+  };
+
   const handlePlaceOrder = async () => {
     if (items.length === 0) {
       toast.error('Your cart is empty');
       return;
     }
 
+    if (!tableNumber.trim()) {
+      toast.error('Please enter your table number');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
+
+      // Validate table number first
+      const isTableValid = await validateTableNumber(tableNumber);
+      if (!isTableValid) {
+        toast.error('Invalid table number. Please check and try again.');
+        return;
+      }
 
       // Get guest info from localStorage
       const guestInfo = localStorage.getItem('guestInfo');
@@ -52,7 +79,8 @@ export default function CartPage() {
         })),
         customerName: name,
         customerPhone: phone,
-        specialInstructions
+        specialInstructions,
+        tableNumber: parseInt(tableNumber)
       };
 
       // Place the order
@@ -155,6 +183,25 @@ export default function CartPage() {
               ))}
             </div>
 
+            {/* Table Number */}
+            <div className="mt-6">
+              <label htmlFor="table-number" className="block text-sm font-medium text-gray-700 mb-2">
+                Table Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                id="table-number"
+                value={tableNumber}
+                onChange={(e) => setTableNumber(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="Enter your table number"
+                required
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                Please enter the number displayed on your table
+              </p>
+            </div>
+
             {/* Special Instructions */}
             <div className="mt-6">
               <label htmlFor="special-instructions" className="block text-sm font-medium text-gray-700 mb-2">
@@ -178,13 +225,18 @@ export default function CartPage() {
               </div>
               <button
                 onClick={handlePlaceOrder}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isValidatingTable}
                 className="w-full mt-4 bg-amber-500 text-white py-3 rounded-md hover:bg-amber-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {isSubmitting ? (
                   <>
                     <FaSpinner className="animate-spin mr-2" />
                     Placing Order...
+                  </>
+                ) : isValidatingTable ? (
+                  <>
+                    <FaSpinner className="animate-spin mr-2" />
+                    Validating Table...
                   </>
                 ) : (
                   'Place Order'

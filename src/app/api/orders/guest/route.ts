@@ -3,6 +3,7 @@ import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
 import User, { IUser } from "@/models/User";
 import MenuItem, { IMenuItem } from "@/models/MenuItem";
+import Table, { ITable } from "@/models/Table";
 import { generateOrderNumber } from "@/lib/utils";
 import mongoose, { FilterQuery, Model } from "mongoose";
 
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     const body = await request.json();
-    const { items, customerName, customerPhone, specialInstructions } = body;
+    const { items, customerName, customerPhone, specialInstructions, tableNumber } = body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
@@ -38,12 +39,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch menu items to get their details
-    const menuItemIds = items.map(item => new mongoose.Types.ObjectId(item.menuItemId));
-    const menuItems = await (MenuItem as Model<IMenuItem>).find({ _id: { $in: menuItemIds } }).lean();
+    if (!tableNumber) {
+      return NextResponse.json(
+        { error: "Table number is required" },
+        { status: 400 }
+      );
+    }
 
-    // Create a map for quick lookup
-    const menuItemMap = new Map(menuItems.map(item => [item._id.toString(), item]));
+    // Validate and get table
+    const table = await (Table as Model<ITable>).findOne({ number: tableNumber });
+    if (!table) {
+      return NextResponse.json(
+        { error: "Invalid table number" },
+        { status: 400 }
+      );
+    }
+
+    // Check if table is available
+    if (table.status !== 'available') {
+      return NextResponse.json(
+        { error: "Table is not available" },
+        { status: 400 }
+      );
+    }
 
     // Get all active waiters
     const filter: FilterQuery<IUser> = {
@@ -82,6 +100,13 @@ export async function POST(request: NextRequest) {
     // Assign a waiter using the balanced algorithm
     const assignedWaiter = assignWaiter(waiters);
 
+    // Fetch menu items to get their details
+    const menuItemIds = items.map(item => new mongoose.Types.ObjectId(item.menuItemId));
+    const menuItems = await (MenuItem as Model<IMenuItem>).find({ _id: { $in: menuItemIds } }).lean();
+
+    // Create a map for quick lookup
+    const menuItemMap = new Map(menuItems.map(item => [item._id.toString(), item]));
+
     // Prepare order items with menu item details
     const orderItems = items.map(item => {
       const menuItem = menuItemMap.get(item.menuItemId) as IMenuItem;
@@ -118,11 +143,22 @@ export async function POST(request: NextRequest) {
       subtotal,
       tax,
       total,
-      table: new mongoose.Types.ObjectId('000000000000000000000000') // Default table ID for guest orders
+      table: table._id
     });
 
     // Save the order
     await order.save();
+
+    // Update table status and assign to waiter
+    await (Table as Model<ITable>).findByIdAndUpdate(
+      table._id,
+      {
+        status: 'occupied',
+        currentWaiter: assignedWaiter._id,
+        lastStatusChanged: new Date()
+      },
+      { new: true }
+    );
 
     // Update waiter's stats
     await (User as Model<WaiterWithStats>).findByIdAndUpdate(
@@ -137,6 +173,7 @@ export async function POST(request: NextRequest) {
     // Populate necessary fields for response
     const populatedOrder = await Order.findById(order._id)
       .populate('waiter', 'name')
+      .populate('table', 'number name')
       .populate('items.menuItem', 'name price')
       .lean();
 
@@ -148,6 +185,13 @@ export async function POST(request: NextRequest) {
     const formattedOrder = {
       id: populatedOrder._id.toString(),
       orderNumber: populatedOrder.orderNumber,
+      customerName: populatedOrder.customerName,
+      tableNumber: (populatedOrder.table as any).number,
+      tableName: (populatedOrder.table as any).name,
+      waiter: {
+        id: (populatedOrder.waiter as any)._id.toString(),
+        name: (populatedOrder.waiter as any).name
+      },
       status: populatedOrder.status,
       items: populatedOrder.items.map((item: any) => ({
         id: item._id.toString(),
@@ -157,17 +201,13 @@ export async function POST(request: NextRequest) {
         status: item.status,
         notes: item.notes
       })),
-      customerName: populatedOrder.customerName,
-      customerPhone: populatedOrder.customerPhone,
-      specialInstructions: populatedOrder.specialInstructions,
-      waiter: {
-        id: (populatedOrder.waiter as any)._id.toString(),
-        name: (populatedOrder.waiter as any).name
-      },
       subtotal: populatedOrder.subtotal,
       tax: populatedOrder.tax,
       total: populatedOrder.total,
-      createdAt: populatedOrder.createdAt
+      specialInstructions: populatedOrder.specialInstructions,
+      paymentStatus: populatedOrder.paymentStatus,
+      createdAt: populatedOrder.createdAt,
+      updatedAt: populatedOrder.updatedAt,
     };
 
     return NextResponse.json({

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import mongoose from 'mongoose';
+import connectDB from '@/lib/mongodb';
 import Order from '@/models/Order';
-import connectToDatabase from '@/lib/mongodb';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -17,7 +16,7 @@ export async function GET() {
     }
 
     // Connect to the database
-    await connectToDatabase();
+    await connectDB();
 
     // Get active orders (pending, in-progress, ready)
     const orders = await Order.find({
@@ -35,17 +34,17 @@ export async function GET() {
     const formattedOrders = orders.map(order => ({
       ...order,
       _id: order._id.toString(),
-      table: typeof order.table === 'object' ? {
+      table: order.table ? {
         _id: (order.table as any)._id.toString(),
         name: (order.table as any).name
-      } : order.table,
+      } : null,
       items: order.items.map(item => ({
         ...item,
         _id: (item as any)._id.toString(),
-        menuItem: {
+        menuItem: item.menuItem ? {
           ...(item.menuItem as any),
           _id: (item.menuItem as any)._id.toString()
-        }
+        } : null
       }))
     }));
 

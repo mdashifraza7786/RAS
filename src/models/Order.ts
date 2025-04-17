@@ -1,23 +1,50 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document, Types } from 'mongoose';
 import { IMenuItem } from './MenuItem';
 import { ITable } from './Table';
 import { ICustomer } from './Customer';
+import { IUser } from './User';
 import Counter from './Counter';
 
+export enum OrderStatus {
+  Pending = 'pending',
+  Cooking = 'cooking',
+  Ready = 'ready',
+  Served = 'served',
+  Completed = 'completed',
+  Cancelled = 'cancelled'
+}
+
+export enum ItemStatus {
+  Pending = 'pending',
+  InProgress = 'in-progress',
+  Ready = 'ready',
+  Served = 'served',
+  Cancelled = 'cancelled'
+}
+
 export interface OrderItem {
-  menuItem: IMenuItem['_id'];
+  menuItem: Types.ObjectId;
   name: string;
   price: number;
   quantity: number;
   note?: string;
-  status: 'pending' | 'preparing' | 'ready' | 'served' | 'cancelled';
+  status: ItemStatus;
 }
 
 export interface IOrder extends Document {
   orderNumber: number;
-  table: ITable['_id'];
+  table: Types.ObjectId;
   items: OrderItem[];
-  status: 'pending' | 'in-progress' | 'ready' | 'served' | 'completed' | 'cancelled';
+  status: OrderStatus;
+  priority: 'high' | 'normal';
+  estimatedTime?: number;
+  startedAt?: Date;
+  completedAt?: Date;
+  events: Array<{
+    timestamp: Date;
+    action: string;
+    user: string;
+  }>;
   subtotal: number;
   tax: number;
   total: number;
@@ -25,16 +52,16 @@ export interface IOrder extends Document {
   paymentMethod?: 'cash' | 'card' | 'upi';
   customerName?: string;
   customerPhone?: string;
-  customer?: ICustomer['_id'];
+  customer?: Types.ObjectId;
   specialInstructions?: string;
-  waiter?: string; // Reference to user ID of waiter
+  waiter?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const orderItemSchema = new Schema<OrderItem>({
   menuItem: {
-    type: Schema.Types.ObjectId as any,
+    type: Schema.Types.ObjectId,
     ref: 'MenuItem',
     required: true
   },
@@ -56,8 +83,8 @@ const orderItemSchema = new Schema<OrderItem>({
   },
   status: {
     type: String,
-    enum: ['pending', 'preparing', 'ready', 'served', 'cancelled'],
-    default: 'pending'
+    enum: Object.values(ItemStatus),
+    default: ItemStatus.Pending
   }
 });
 
@@ -69,30 +96,40 @@ const orderSchema = new Schema<IOrder>(
       unique: true
     },
     table: {
-      type: Schema.Types.ObjectId as any,
+      type: Schema.Types.ObjectId,
       ref: 'Table',
       required: true
     },
+    priority: {
+      type: String,
+      enum: ['high', 'normal'],
+      default: 'normal'
+    },
+    estimatedTime: Number,
+    startedAt: Date,
+    completedAt: Date,
+    events: [{
+      timestamp: { type: Date, required: true },
+      action: { type: String, required: true },
+      user: { type: String, required: true }
+    }],
     items: [orderItemSchema],
     status: {
       type: String,
-      enum: ['pending', 'in-progress', 'ready', 'served', 'completed', 'cancelled'],
-      default: 'pending'
+      enum: Object.values(OrderStatus),
+      default: OrderStatus.Pending
     },
     subtotal: {
       type: Number,
-      required: true,
-      min: 0
+      required: true
     },
     tax: {
       type: Number,
-      required: true,
-      min: 0
+      required: true
     },
     total: {
       type: Number,
-      required: true,
-      min: 0
+      required: true
     },
     paymentStatus: {
       type: String,
@@ -110,14 +147,14 @@ const orderSchema = new Schema<IOrder>(
       type: String
     },
     customer: {
-      type: Schema.Types.ObjectId as any,
+      type: Schema.Types.ObjectId,
       ref: 'Customer'
     },
     specialInstructions: {
       type: String
     },
     waiter: {
-      type: Schema.Types.ObjectId as any,
+      type: Schema.Types.ObjectId,
       ref: 'User'
     }
   },

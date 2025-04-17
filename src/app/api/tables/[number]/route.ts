@@ -1,17 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectToDatabase from '@/lib/mongodb';
-import Table from '@/models/Table';
+import connectDB from '@/lib/mongodb';
+import Table, { ITable } from '@/models/Table';
+import { Model } from 'mongoose';
 import { getServerSession } from 'next-auth';
 
-// GET /api/tables/[id] - Get a specific table
+// GET /api/tables/[number] - Get a specific table
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { number: string } }
 ) {
   try {
-    await connectToDatabase();
+    await connectDB();
     
-    const table = await Table.findById(params.id);
+    const tableNumber = parseInt(params.number);
+    if (isNaN(tableNumber)) {
+      return NextResponse.json(
+        { error: 'Invalid table number' },
+        { status: 400 }
+      );
+    }
+    
+    const table = await (Table as Model<ITable>).findOne({ number: tableNumber });
     
     if (!table) {
       return NextResponse.json(
@@ -30,10 +39,10 @@ export async function GET(
   }
 }
 
-// PUT /api/tables/[id] - Update a table (manager and waiter)
+// PUT /api/tables/[number] - Update a table (manager and waiter)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { number: string } }
 ) {
   try {
     const session = await getServerSession();
@@ -46,8 +55,16 @@ export async function PUT(
       );
     }
     
-    await connectToDatabase();
+    await connectDB();
     const data = await request.json();
+    
+    const tableNumber = parseInt(params.number);
+    if (isNaN(tableNumber)) {
+      return NextResponse.json(
+        { error: 'Invalid table number' },
+        { status: 400 }
+      );
+    }
     
     // If user is waiter, only allow updating status
     if (session.user.role === 'waiter') {
@@ -64,8 +81,8 @@ export async function PUT(
       }
     }
     
-    const table = await Table.findByIdAndUpdate(
-      params.id,
+    const table = await (Table as Model<ITable>).findOneAndUpdate(
+      { number: tableNumber },
       { $set: data },
       { new: true, runValidators: true }
     );
@@ -87,10 +104,10 @@ export async function PUT(
   }
 }
 
-// DELETE /api/tables/[id] - Delete a table (manager only)
-export async function DELETE(
+// POST /api/tables/[number] - Create or update a table (manager only)
+export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { number: string } }
 ) {
   try {
     const session = await getServerSession();
@@ -103,22 +120,38 @@ export async function DELETE(
       );
     }
     
-    await connectToDatabase();
+    await connectDB();
+    const data = await request.json();
     
-    const table = await Table.findByIdAndDelete(params.id);
-    
-    if (!table) {
+    const tableNumber = parseInt(params.number);
+    if (isNaN(tableNumber)) {
       return NextResponse.json(
-        { error: 'Table not found' },
-        { status: 404 }
+        { error: 'Invalid table number' },
+        { status: 400 }
       );
     }
     
-    return NextResponse.json({ message: 'Table deleted successfully' });
+    // Create or update the table
+    const table = await (Table as Model<ITable>).findOneAndUpdate(
+      { number: tableNumber },
+      { 
+        $set: { 
+          ...data,
+          number: tableNumber // Ensure the number matches the URL parameter
+        } 
+      },
+      { 
+        new: true, 
+        upsert: true, // Create if doesn't exist
+        runValidators: true 
+      }
+    );
+    
+    return NextResponse.json(table);
   } catch (error) {
-    console.error('Error deleting table:', error);
+    console.error('Error creating/updating table:', error);
     return NextResponse.json(
-      { error: 'Failed to delete table' },
+      { error: 'Failed to create/update table' },
       { status: 500 }
     );
   }

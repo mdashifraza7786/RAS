@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import Order, { IOrder, OrderItem } from "@/models/Order";
+import Order from "@/models/Order";
 import { getOrderStatusMapping } from "@/lib/utils";
 
 /**
@@ -13,7 +13,7 @@ export async function GET(
   context: { params: { orderNumber: string } }
 ) {
   try {
-    const orderNumber = context.params.orderNumber;
+    const { orderNumber } = context.params;
 
     if (!orderNumber) {
       return NextResponse.json(
@@ -52,8 +52,8 @@ export async function GET(
         name: (order.waiter as any).name
       } : undefined,
       status: getOrderStatusMapping(order.status),
-      items: order.items.map((item: OrderItem) => ({
-        id: (item as any)._id.toString(),
+      items: order.items.map((item: any) => ({
+        id: item._id.toString(),
         name: item.name || "Unknown Item",
         quantity: item.quantity,
         price: item.price,

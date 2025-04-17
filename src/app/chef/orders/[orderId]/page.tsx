@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   FaArrowLeft, 
@@ -11,12 +11,16 @@ import {
   FaUtensils,
   FaCheckCircle,
   FaPrint,
-  FaClock
+  FaClock,
+  FaSpinner
 } from 'react-icons/fa';
+import axios from 'axios';
+import { API_URL } from '@/config/constants';
+import { toast } from 'react-hot-toast';
 
 // Types
 interface OrderItem {
-  id: number;
+  itemId: string;
   name: string;
   quantity: number;
   special: string;
@@ -32,7 +36,7 @@ interface OrderEvent {
 }
 
 interface Order {
-  id: number;
+  id: string;
   table: string;
   items: OrderItem[];
   timeReceived: string;
@@ -46,52 +50,6 @@ interface Order {
   notes?: string;
 }
 
-// Sample order details
-const orderDetails: Order = {
-  id: 1042,
-  table: 'Table 7',
-  items: [
-    { 
-      id: 1, 
-      name: 'Butter Chicken', 
-      quantity: 1, 
-      special: 'Extra spicy', 
-      status: 'in-progress', 
-      assignedTo: 'Chef Sharma',
-      estimatedTime: 12
-    },
-    { 
-      id: 2, 
-      name: 'Garlic Naan', 
-      quantity: 2, 
-      special: '', 
-      status: 'completed', 
-      assignedTo: 'Chef Patel',
-      estimatedTime: 5
-    },
-    { 
-      id: 3, 
-      name: 'Veg Biryani', 
-      quantity: 1, 
-      special: 'No onions', 
-      status: 'pending'
-    }
-  ],
-  timeReceived: '11:45 AM',
-  priority: 'high',
-  status: 'cooking',
-  estimatedTime: 15,
-  startedAt: '12:00 PM',
-  waiter: 'Raj',
-  events: [
-    { time: '11:45 AM', action: 'Order received from POS', user: 'System' },
-    { time: '11:50 AM', action: 'Order sent to kitchen', user: 'Raj (Waiter)' },
-    { time: '12:00 PM', action: 'Started cooking', user: 'Sharma (Chef)' },
-    { time: '12:05 PM', action: 'Garlic Naan completed', user: 'Patel (Chef)' }
-  ],
-  notes: 'Customer celebrating anniversary, extra care for presentation.'
-};
-
 interface PageProps {
   params: {
     orderId: string;
@@ -101,10 +59,41 @@ interface PageProps {
 
 export default function OrderDetailPage({ params }: PageProps) {
   const router = useRouter();
-  const [order] = useState<Order>(orderDetails);
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   
-  // In a real app, you would fetch the order details using the orderId
-  const orderId = params.orderId;
+  useEffect(() => {
+    const fetchOrder = async () => {
+      try {
+        console.log(`Fetching order details for orderId: ${params.orderId}`);
+        setIsLoading(true);
+        
+        const response = await axios.get(`${API_URL}/orders/${params.orderId}`);
+        
+        if (!response.data || !response.data.order) {
+          throw new Error('Invalid response format: missing order data');
+        }
+
+        console.log('Order fetch successful:', response.data);
+        setOrder(response.data.order);
+      } catch (error) {
+        console.error('Error fetching order:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch order details';
+        toast.error(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOrder();
+
+    // Poll for updates every 30 seconds
+    const intervalId = setInterval(fetchOrder, 30000);
+
+    return () => clearInterval(intervalId);
+  }, [params.orderId]);
   
   // Function to go back to orders list
   const goBack = () => {
@@ -113,7 +102,7 @@ export default function OrderDetailPage({ params }: PageProps) {
   
   // Calculate elapsed time if order is cooking
   let elapsedMinutes = 0;
-  if (order.status === 'cooking' && order.startedAt) {
+  if (order?.status === 'cooking' && order.startedAt) {
     const startTime = new Date();
     startTime.setHours(
       parseInt(order.startedAt.split(':')[0]),
@@ -161,18 +150,90 @@ export default function OrderDetailPage({ params }: PageProps) {
     }
   };
   
-  // Functions for action buttons based on order status
-  const startCooking = () => {
-    router.push(`/chef/orders/start?orderId=${orderId}`);
+  // Function to update item status
+  const updateItemStatus = async (itemId: string, newStatus: OrderItem['status']) => {
+    try {
+      console.log(`Updating item ${itemId} to status: ${newStatus}`);
+      setIsLoading(true);
+      
+      const response = await axios.put(`${API_URL}/orders/${params.orderId}/items/${itemId}/status`, {
+        status: newStatus
+      });
+
+      if (!response.data || !response.data.order) {
+        throw new Error('Invalid response format: missing order data');
+      }
+
+      console.log('Order update successful:', response.data);
+      setOrder(response.data.order);
+      toast.success(`Item status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating item status:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update item status';
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
   
-  const completeOrder = () => {
-    router.push(`/chef/orders/complete?orderId=${orderId}`);
+  // Functions for action buttons based on order status
+  const startCooking = async () => {
+    try {
+      await axios.post(`${API_URL}/chef/orders/${params.orderId}/start`);
+      // Refetch order details
+      const response = await axios.get(`${API_URL}/chef/orders/${params.orderId}`);
+      setOrder(response.data.order);
+    } catch (err: any) {
+      console.error('Error starting order:', err);
+      // Handle error (show toast, etc.)
+    }
+  };
+  
+  const completeOrder = async () => {
+    try {
+      await axios.post(`${API_URL}/chef/orders/${params.orderId}/complete`);
+      // Refetch order details
+      const response = await axios.get(`${API_URL}/chef/orders/${params.orderId}`);
+      setOrder(response.data.order);
+    } catch (err: any) {
+      console.error('Error completing order:', err);
+      // Handle error (show toast, etc.)
+    }
   };
   
   const printOrder = () => {
     window.print();
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <FaSpinner className="animate-spin text-amber-500 text-4xl" />
+      </div>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <FaExclamationTriangle className="text-red-500 mr-3" />
+            <div>
+              <h3 className="text-red-800 font-medium">Error</h3>
+              <p className="text-red-600">{error || 'Order not found'}</p>
+            </div>
+          </div>
+          <button
+            onClick={goBack}
+            className="mt-4 text-red-600 hover:text-red-800 font-medium"
+          >
+            Return to Orders
+          </button>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="p-6">
@@ -198,73 +259,59 @@ export default function OrderDetailPage({ params }: PageProps) {
                 order.priority === 'high' ? 'bg-red-500' : 'bg-amber-500'
               }`}></span>
               <span className="font-medium text-gray-700 mr-2">{order.table}</span>
-              <span className={`px-2 py-1 rounded-full text-xs flex items-center ${getStatusBadgeStyle(order.status)}`}>
-                <span className="mr-1">{getStatusIcon(order.status)}</span>
-                <span className="capitalize">{order.status}</span>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                getStatusBadgeStyle(order.status)
+              }`}>
+                {getStatusIcon(order.status)}
+                <span className="ml-1">{order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span>
               </span>
-              {order.priority === 'high' && (
-                <span className="ml-2 bg-red-100 px-2 py-1 rounded text-xs text-red-700 font-medium flex items-center">
-                  <FaExclamationTriangle className="mr-1" />
-                  High Priority
-                </span>
-              )}
-            </div>
-            <div className="text-sm text-gray-500 mb-2">
-              Waiter: {order.waiter}
             </div>
             <div className="text-sm text-gray-500">
-              Received: {order.timeReceived}
+              <span>Waiter: {order.waiter}</span>
+              <span className="mx-2">•</span>
+              <span>Received: {order.timeReceived}</span>
             </div>
           </div>
           
-          <div className="mt-4 md:mt-0">
-            {order.status === 'cooking' && (
-              <div className="text-sm text-orange-600 font-medium flex items-center">
-                <FaFireAlt className="mr-1" />
-                <span>
-                  Cooking: {elapsedMinutes} min elapsed 
-                  {order.estimatedTime && ` / ${order.estimatedTime} min estimated`}
-                </span>
+          {order.status === 'cooking' && (
+            <div className="mt-4 md:mt-0 text-right">
+              <div className="text-orange-600">
+                <FaFireAlt className="inline mr-1" />
+                <span>Cooking: {elapsedMinutes} min elapsed</span>
               </div>
-            )}
-            {order.startedAt && (
-              <div className="text-sm text-gray-500">
-                Started: {order.startedAt}
-              </div>
-            )}
-            {order.completedAt && (
-              <div className="text-sm text-gray-500">
-                Completed: {order.completedAt}
-              </div>
-            )}
-          </div>
+              {order.estimatedTime && (
+                <div className="text-sm text-gray-500">
+                  {order.estimatedTime} min estimated
+                </div>
+              )}
+            </div>
+          )}
         </div>
         
-        {/* Action buttons */}
-        <div className="flex flex-wrap gap-2 mt-4">
+        <div className="flex flex-wrap gap-2">
           {order.status === 'pending' && (
-            <button 
+            <button
               onClick={startCooking}
-              className="px-4 py-2 bg-amber-500 text-white rounded-md font-medium flex items-center hover:bg-amber-600"
+              className="flex items-center px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600"
             >
-              <FaFireAlt className="mr-2" />
+              <FaUtensils className="mr-2" />
               Start Cooking
             </button>
           )}
           
           {order.status === 'cooking' && (
-            <button 
+            <button
               onClick={completeOrder}
-              className="px-4 py-2 bg-green-500 text-white rounded-md font-medium flex items-center hover:bg-green-600"
+              className="flex items-center px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
             >
               <FaCheckCircle className="mr-2" />
               Complete Order
             </button>
           )}
           
-          <button 
+          <button
             onClick={printOrder}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md font-medium flex items-center hover:bg-gray-300"
+            className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
           >
             <FaPrint className="mr-2" />
             Print
@@ -274,32 +321,67 @@ export default function OrderDetailPage({ params }: PageProps) {
       
       {/* Order Items */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-          <h2 className="text-lg font-medium text-gray-800">Order Items</h2>
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-800">Order Items</h2>
         </div>
-        
         <div className="divide-y divide-gray-200">
           {order.items.map((item) => (
-            <div key={item.id} className="p-4">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3">
-                <div className="flex items-center mb-2 md:mb-0">
-                  <span className="font-medium text-gray-800">{item.quantity}× {item.name}</span>
-                  <span className={`ml-2 px-2 py-1 rounded-full text-xs flex items-center ${getStatusBadgeStyle(item.status)}`}>
-                    <span className="mr-1">{getStatusIcon(item.status)}</span>
-                    <span className="capitalize">{item.status}</span>
+            <div key={item.itemId} className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center">
+                  <span className="font-medium text-gray-800">
+                    {item.quantity}× {item.name}
+                  </span>
+                  <span className={`ml-3 px-2 py-1 rounded-full text-xs font-medium ${
+                    getStatusBadgeStyle(item.status)
+                  }`}>
+                    {getStatusIcon(item.status)}
+                    <span className="ml-1">
+                      {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                    </span>
                   </span>
                 </div>
-                
-                {item.assignedTo && (
-                  <div className="text-sm text-gray-500">
-                    Chef: {item.assignedTo}
-                    {item.estimatedTime && ` (${item.estimatedTime} min)`}
+                <div className="flex items-center space-x-2">
+                  {item.assignedTo && (
+                    <span className="text-sm text-gray-500">
+                      Chef: {item.assignedTo}
+                      {item.estimatedTime && ` (${item.estimatedTime} min)`}
+                    </span>
+                  )}
+                  {/* Status Update Buttons */}
+                  <div className="flex space-x-2">
+                    {item.status === 'pending' && (
+                      <button
+                        onClick={() => updateItemStatus(item.itemId, 'in-progress')}
+                        className="px-3 py-1 bg-amber-500 text-white text-sm rounded-md hover:bg-amber-600 flex items-center"
+                      >
+                        <FaFireAlt className="mr-1" size={12} />
+                        Start
+                      </button>
+                    )}
+                    {item.status === 'in-progress' && (
+                      <button
+                        onClick={() => updateItemStatus(item.itemId, 'completed')}
+                        className="px-3 py-1 bg-green-500 text-white text-sm rounded-md hover:bg-green-600 flex items-center"
+                      >
+                        <FaCheckCircle className="mr-1" size={12} />
+                        Complete
+                      </button>
+                    )}
+                    {item.status === 'completed' && (
+                      <button
+                        onClick={() => updateItemStatus(item.itemId, 'in-progress')}
+                        className="px-3 py-1 bg-gray-500 text-white text-sm rounded-md hover:bg-gray-600 flex items-center"
+                      >
+                        <FaFireAlt className="mr-1" size={12} />
+                        Reopen
+                      </button>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
-              
               {item.special && (
-                <div className="mt-1 text-sm text-red-600">
+                <div className="text-sm text-red-600">
                   Special request: {item.special}
                 </div>
               )}
@@ -308,32 +390,25 @@ export default function OrderDetailPage({ params }: PageProps) {
         </div>
       </div>
       
-      {/* Order activity timeline */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center">
-          <FaHistory className="text-gray-500 mr-2" />
-          <h2 className="text-lg font-medium text-gray-800">Order Timeline</h2>
+      {/* Order Timeline */}
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+            <FaHistory className="mr-2 text-gray-400" />
+            Order Timeline
+          </h2>
         </div>
-        
         <div className="p-4">
           <div className="space-y-4">
             {order.events.map((event, index) => (
               <div key={index} className="flex">
-                <div className="mr-3 flex flex-col items-center">
-                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                    <FaUtensils className="text-indigo-500" />
-                  </div>
-                  {index < order.events.length - 1 && (
-                    <div className="w-0.5 h-full bg-gray-200 mt-2"></div>
-                  )}
+                <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center">
+                  <div className="h-full w-px bg-gray-200"></div>
                 </div>
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-gray-800">{event.action}</div>
-                  <div className="flex items-center text-xs text-gray-500">
-                    <span>{event.time}</span>
-                    <span className="mx-1">•</span>
-                    <span>{event.user}</span>
-                  </div>
+                <div className="flex-grow pb-4">
+                  <div className="text-sm text-gray-500">{event.time}</div>
+                  <div className="font-medium text-gray-800">{event.action}</div>
+                  <div className="text-sm text-gray-500">{event.user}</div>
                 </div>
               </div>
             ))}
@@ -341,11 +416,11 @@ export default function OrderDetailPage({ params }: PageProps) {
         </div>
       </div>
       
-      {/* Notes */}
+      {/* Notes Section */}
       {order.notes && (
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-gray-800">Notes</h2>
+        <div className="mt-6 bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="p-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-800">Notes</h2>
           </div>
           <div className="p-4">
             <p className="text-gray-700">{order.notes}</p>
