@@ -44,10 +44,8 @@ const attendanceSchema = new Schema<IAttendance>(
   }
 );
 
-// Create a compound index to ensure one record per staff per day
 attendanceSchema.index({ staff: 1, date: 1 }, { unique: true });
 
-// Check if model already exists to prevent overwrite during hot reload in development
 const Attendance = mongoose.models.Attendance || mongoose.model<IAttendance>('Attendance', attendanceSchema);
 
 export default Attendance; 
