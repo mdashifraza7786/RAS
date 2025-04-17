@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { FaShoppingCart, FaSpinner, FaMinus, FaPlus, FaTrash, FaArrowRight } from 'react-icons/fa';
 import { formatCurrency } from '@/lib/utils';
@@ -21,7 +21,7 @@ interface MenuItem {
   preparationTime: number;
 }
 
-export default function MenuPage() {
+function MenuContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { items, addItem, updateQuantity, removeItem, total, itemCount } = useCart();
@@ -241,5 +241,17 @@ export default function MenuPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function MenuPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <FaSpinner className="animate-spin text-amber-500 text-4xl" />
+      </div>
+    }>
+      <MenuContent />
+    </Suspense>
   );
 } 
