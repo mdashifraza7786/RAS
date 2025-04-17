@@ -9,7 +9,7 @@ export interface OrderItem {
   menuItem: {
     _id: string;
     name: string;
-    preparationTime: number;
+    preparationTime: number; 
     isVegetarian: boolean;
     isVegan: boolean;
     isGlutenFree: boolean;
