@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { FaSpinner, FaCheckCircle, FaClock, FaUtensils, FaExclamationTriangle, FaHistory, FaReceipt } from 'react-icons/fa';
 import { formatCurrency } from '@/lib/utils';
@@ -35,7 +35,7 @@ interface Order {
   waiter?: Waiter;
 }
 
-export default function TrackOrderPage() {
+function TrackOrderContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [order, setOrder] = useState<Order | null>(null);
@@ -366,5 +366,17 @@ export default function TrackOrderPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TrackOrderPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <FaSpinner className="animate-spin text-amber-500 text-4xl" />
+      </div>
+    }>
+      <TrackOrderContent />
+    </Suspense>
   );
 } 
