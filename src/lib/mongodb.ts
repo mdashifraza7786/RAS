@@ -8,29 +8,22 @@ if (!MONGODB_URI) {
   );
 }
 
-// Define the type for our mongoose cached connection
 interface MongooseCache {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
 }
 
-// Define the global namespace
 declare global {
-  // eslint-disable-next-line no-var
   var mongoose: MongooseCache | undefined;
 }
 
-// Initialize the cached connection
 const cached: MongooseCache = global.mongoose || { conn: null, promise: null };
 
-// For development mode, where we might need to refresh connections
 if (process.env.NODE_ENV === 'development') {
   global.mongoose = cached;
 }
 
-// Ensure Counter model is defined
 function initializeCounter() {
-  // Define schema if it doesn't exist already
   if (!mongoose.models.Counter) {
     const CounterSchema = new mongoose.Schema({
       name: { type: String, required: true, unique: true },
@@ -43,7 +36,6 @@ function initializeCounter() {
 
 async function connectToDatabase() {
   if (cached.conn) {
-    // Ensure Counter model is initialized even if connection is cached
     initializeCounter();
     return cached.conn;
   }
@@ -61,7 +53,6 @@ async function connectToDatabase() {
   try {
     cached.conn = await cached.promise;
     
-    // Initialize Counter model
     initializeCounter();
     
   } catch (e) {
