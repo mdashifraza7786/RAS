@@ -41,16 +41,13 @@ export type CustomerFilters = {
   limit?: number;
 };
 
-/**
- * Hook for fetching and managing customers
- */
+
 export function useCustomers(initialFilters: CustomerFilters = {}) {
   const [customersData, setCustomersData] = useState<CustomersResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
   const [filters, setFilters] = useState<CustomerFilters>(initialFilters);
 
-  // Function to fetch customers with filters
   const fetchCustomers = async (filterParams: CustomerFilters = filters) => {
     try {
       setLoading(true);
@@ -87,17 +84,14 @@ export function useCustomers(initialFilters: CustomerFilters = {}) {
     }
   };
 
-  // Load customers on initial mount and when filters change
   useEffect(() => {
     fetchCustomers();
   }, [filters]);
 
-  // Function to update filters and refetch
   const updateFilters = (newFilters: CustomerFilters) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   };
 
-  // Function to get a single customer by ID (with optional history)
   const getCustomer = async (customerId: string, includeHistory: boolean = false) => {
     try {
       setLoading(true);
@@ -111,13 +105,11 @@ export function useCustomers(initialFilters: CustomerFilters = {}) {
     }
   };
 
-  // Function to create a new customer
   const createCustomer = async (customerData: Omit<Customer, '_id' | 'createdAt' | 'updatedAt'>) => {
     try {
       setLoading(true);
       setError(null);
       const newCustomer = await customerApi.create(customerData);
-      // Refresh customers after creation
       await fetchCustomers();
       return newCustomer;
     } catch (err) {
@@ -128,13 +120,11 @@ export function useCustomers(initialFilters: CustomerFilters = {}) {
     }
   };
 
-  // Function to update a customer
   const updateCustomer = async (customerId: string, data: Partial<Customer>) => {
     try {
       setLoading(true);
       setError(null);
       const updatedCustomer = await customerApi.update(customerId, data);
-      // Refresh customers after update
       await fetchCustomers();
       return updatedCustomer;
     } catch (err) {
@@ -145,13 +135,11 @@ export function useCustomers(initialFilters: CustomerFilters = {}) {
     }
   };
 
-  // Function to delete a customer (manager only)
   const deleteCustomer = async (customerId: string) => {
     try {
       setLoading(true);
       setError(null);
       await customerApi.delete(customerId);
-      // Refresh customers after deletion
       await fetchCustomers();
       return true;
     } catch (err) {
