@@ -64,15 +64,12 @@ const userSchema = new Schema<IUser>(
   },
   {
     timestamps: true,
-    // This will ensure the collection has the right schema
     strict: true,
     strictQuery: true
   }
 );
 
-// Hash password before saving
 userSchema.pre('save', async function(next) {
-  // Only hash the password if it's modified (or new)
   if (!this.isModified('password')) return next();
 
   try {
@@ -84,17 +81,14 @@ userSchema.pre('save', async function(next) {
   }
 });
 
-// Method to compare password
 userSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Delete and recreate model for dev purposes - ONLY FOR DEVELOPMENT
 if (process.env.NODE_ENV === 'development' && mongoose.models.User) {
   delete mongoose.models.User;
 }
 
-// Create the model with the updated schema
 const User = mongoose.models.User || mongoose.model<IUser>('User', userSchema);
 
 export default User; 
