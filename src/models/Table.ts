@@ -5,7 +5,7 @@ export interface ITable extends Document {
   name: string;
   capacity: number;
   status: 'available' | 'occupied' | 'reserved' | 'cleaning';
-  assignedTo?: mongoose.Types.ObjectId; // Reference to User (waiter)
+  assignedTo?: mongoose.Types.ObjectId; 
   lastStatusChanged: Date;
   location: string;
   createdAt: Date;
@@ -53,7 +53,6 @@ const tableSchema = new Schema<ITable>(
   }
 );
 
-// Add a pre-save hook to update lastStatusChanged when status changes
 tableSchema.pre('save', function(next) {
   if (this.isModified('status')) {
     this.lastStatusChanged = new Date();
@@ -61,7 +60,6 @@ tableSchema.pre('save', function(next) {
   next();
 });
 
-// Check if model already exists to prevent overwrite during hot reload in development
 const Table = mongoose.models.Table || mongoose.model<ITable>('Table', tableSchema);
 
 export default Table; 
